@@ -1,0 +1,8 @@
+[package]
+name = "mlsmpm-particles-rs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+bevy = "0.6"
+rand = "0.8"
