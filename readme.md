@@ -10,3 +10,11 @@ Library [bevy](https://github.com/bevyengine/bevy) is used to render the output 
 Liby99's [mpm-rs](https://github.com/Liby99/mpm-rs) project inspired me to model MPM simulation inside an ECS.  
 Unlike mlsmpm-particles-go, this implementation in rust is parallelized and can fully utilize all CPU cores when enough particles are spawned.    
 The Bevy ECS is really ergonomic, all it took to implement parallel processing was calling the par_for_each methods and the rest happened automatically.   
+
+---
+
+## Example Image
+
+
+
+![capture](https://user-images.githubusercontent.com/1654124/151738544-1b523e1d-c525-4526-8a29-61733ba9d517.png)
