@@ -5,12 +5,11 @@ use bevy::{
 };
 use std::ops::Mul;
 use std::sync::Mutex;
+use bevy::diagnostic::{EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy_egui::{egui, EguiContext, EguiPlugin};
+use rand::Rng;
 
 const GRAVITY: f32 = -0.3;
-const REST_DENSITY: f32 = 4.0;
-const DYNAMIC_VISCOSITY: f32 = 0.1;
-const EOS_STIFFNESS: f32 = 10.0;
-const EOS_POWER: f32 = 4.0;
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
 
 // Marks particle entities
@@ -32,6 +31,22 @@ struct Mass(f32);
 // 2x2 affine momentum matrix
 #[derive(Component)]
 struct AffineMomentum(Mat2);
+
+// particle constitutive model
+#[derive(Component)]
+struct RestDensity(f32);
+
+// particle constitutive model
+#[derive(Component)]
+struct DynamicViscosity(f32);
+
+// particle constitutive model
+#[derive(Component)]
+struct EosStiffness(f32);
+
+// particle constitutive model
+#[derive(Component)]
+struct EosPower(f32);
 
 struct SquareSpawnInfo {
     tick: usize,
@@ -142,7 +157,7 @@ fn grid_to_particles(
 ) {
     particles.par_for_each_mut(
         &pool,
-        usize::pow(2, 6),
+        usize::pow(2, 9),
         |(mut position, mut velocity, mut affine_momentum)| {
             //// reset particle velocity. we calculate it from scratch each step using the grid
             velocity.0 = Vec2::ZERO;
@@ -227,11 +242,37 @@ fn grid_to_particles(
     );
 }
 
+fn collide_with_solid_cells(
+                                mut commands: Commands,
+                                pool: Res<ComputeTaskPool>,
+                                grid: Res<Grid>,
+                                particles: Query<(Entity, &Position, &Velocity), With<Particle>>) {
+
+    let mut particles_to_collide: Mutex<Vec<Entity>> = Mutex::new(Vec::new());
+
+    particles.par_for_each(  &pool,
+                                 usize::pow(2, 9),
+                                 |(id, position, velocity)| {
+                                     // boundaries
+                                     let position_next = position.0 + velocity.0;
+                                     if position_next.x < 90. && position_next.y  < 50. {
+                                         particles_to_collide.lock().unwrap().push(id);
+                                     }
+                                 });
+
+
+    // apply the particles that collided
+    for (i, particle_id) in particles_to_collide.lock().unwrap().iter().enumerate() {
+        // todo i am useless.
+        commands.entity(*particle_id).despawn();
+    }
+}
+
 fn update_sprites(
     pool: Res<ComputeTaskPool>,
     mut particles: Query<(&mut Transform, &Position), With<Particle>>,
 ) {
-    particles.par_for_each_mut(&pool, usize::pow(2, 6), |(mut transform, position)| {
+    particles.par_for_each_mut(&pool, usize::pow(2, 9), |(mut transform, position)| {
         transform.translation.x = position.0.x;
         transform.translation.y = position.0.y;
     });
@@ -240,14 +281,14 @@ fn update_sprites(
 fn particles_to_grid(
     pool: Res<ComputeTaskPool>,
     mut grid: ResMut<Grid>,
-    particles: Query<(&Position, &Mass, &AffineMomentum), With<Particle>>,
+    particles: Query<(&Position, &Mass, &AffineMomentum, &RestDensity, &DynamicViscosity, &EosStiffness, &EosPower), With<Particle>>,
 ) {
     let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
 
     particles.par_for_each(
         &pool,
-        usize::pow(2, 6),
-        |(position, mass, affine_momentum)| {
+        usize::pow(2, 9),
+        |(position, mass, affine_momentum, rest_density, dynamic_viscosity, eos_stiffness, eos_power)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
             let cell_diff = Vec2::new(
@@ -273,14 +314,14 @@ fn particles_to_grid(
             // fluid constitutive model
             let pressure = f32::max(
                 -0.1,
-                EOS_STIFFNESS * (f32::powf(density / REST_DENSITY, EOS_POWER) - 1.0),
+                eos_stiffness.0 * (f32::powf(density / rest_density.0, eos_power.0) - 1.0),
             );
             let mut stress = Mat2::from_cols(Vec2::new(-pressure, 0.0), Vec2::new(0.0, -pressure));
             let mut strain = affine_momentum.0.clone();
             let trace = strain.y_axis.x + strain.x_axis.y;
             strain.y_axis.x = trace;
             strain.x_axis.y = trace;
-            let viscosity_term = strain * DYNAMIC_VISCOSITY;
+            let viscosity_term = strain * dynamic_viscosity.0;
             stress += viscosity_term;
 
             let eq_16_term_0 = stress * (-volume * 4.0 * grid.dt);
@@ -321,9 +362,9 @@ fn periodic_spawn(
     grid: Res<Grid>,
     mut spawn_info: ResMut<SquareSpawnInfo>,
 ) {
-    if spawn_info.tick % 500 == 0 {
+    if spawn_info.tick % 100 == 0 {
         let texture = asset_server.load("branding/icon.png");
-        spawn_square(commands, texture, Vec2::new(20.0, grid.width as f32 - 20.0));
+        spawn_square(commands, texture, Vec2::new(22.0, grid.width as f32 - 22.0));
     }
     spawn_info.tick += 1;
 }
@@ -333,7 +374,7 @@ fn make_solid_on_click(
     buttons: Res<Input<MouseButton>>, // has mouse clicks
     windows: Res<Windows>,            // has cursor position
     grid: Res<Grid>,
-    mut particles: Query<(&Position, &mut Velocity, &mut Mass), With<Particle>>,
+    mut particles: Query<(&Position, &mut Velocity, &mut Mass, &mut RestDensity, &mut DynamicViscosity, &mut EosStiffness, &mut EosPower), With<Particle>>,
 ) {
     if buttons.just_pressed(MouseButton::Left) {
         // Left button was pressed
@@ -346,14 +387,12 @@ fn make_solid_on_click(
             let grid_pos = win_pos / scale;
             particles.par_for_each_mut(
                 &pool,
-                usize::pow(2, 6),
-                |(position, mut velocity, mass)| {
+                usize::pow(2, 9),
+                |(position, mut velocity, mut mass, mut rest_density, mut dynamic_viscosity, mut eos_stiffness, mut eos_power)| {
                     if (grid_pos.x - position.0.x).abs() < 4.0
                         && (grid_pos.y - position.0.y).abs() < 4.0
                     {
-                        velocity.0 *= 2.;
-                        // todo update sprite
-                        // todo change constitutive model properties of particle.
+                       // todo i dont do anything right now!
                     }
                 },
             );
@@ -362,23 +401,32 @@ fn make_solid_on_click(
 }
 
 fn spawn_square(mut commands: Commands, tex: Handle<Image>, origin: Vec2) {
-    for i in 0..15 {
-        for j in 0..15 {
-            commands
-                .spawn_bundle(SpriteBundle {
-                    texture: tex.clone(),
-                    transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from grid size or just to look OK
-                    ..Default::default()
-                })
-                .insert_bundle((
-                    Position(origin + Vec2::new(i as f32, j as f32)),
-                    Velocity(Vec2::new(9.0, -3.0)),
-                    Mass(1.0),
-                    AffineMomentum(Mat2::ZERO),
-                    Particle,
-                ));
+    let mut rng = rand::thread_rng();
+    let square_vel = Vec2::new(rng.gen::<f32>()*10.0 - 5., rng.gen::<f32>()*10.0 - 5.);
+    for i in 0..19 {
+        for j in 0..19 {
+            new_particle(&mut commands, tex.clone(), origin + Vec2::new(i as f32, j as f32), square_vel);
         }
     }
+}
+
+fn new_particle(mut commands: &mut Commands, tex: Handle<Image>, at: Vec2, vel: Vec2) {
+    commands.spawn_bundle(SpriteBundle {
+        texture: tex.clone(),
+        transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from grid size or just to look OK
+        ..Default::default()
+    })
+        .insert_bundle((
+            Position(at),
+            Velocity(vel),
+            Mass(1.0),
+            AffineMomentum(Mat2::ZERO),
+            RestDensity(4.),
+            DynamicViscosity(0.1),
+            EosStiffness(10.),
+            EosPower(4.),
+            Particle,
+        ));
 }
 
 fn update_grid(mut grid: ResMut<Grid>) {
@@ -394,7 +442,7 @@ fn update_cells(
 
     particles.par_for_each(
         &pool,
-        usize::pow(2, 6),
+        usize::pow(2, 9),
         |(position, velocity, mass, affine_momentum)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
@@ -449,9 +497,22 @@ fn spawn_system(mut commands: Commands, grid: Res<Grid>, wnds: Res<Windows>) {
     commands.spawn_bundle(cb);
 }
 
+fn ui_example(mut commands: Commands,
+              mut egui_context: ResMut<EguiContext>,
+              particles: Query<(Entity), With<Particle>>) {
+    egui::Window::new("Controls").show(egui_context.ctx_mut(), |ui| {
+        if ui.button("reset").clicked() {
+            particles.for_each(  |(id)| {
+                commands.entity(id).despawn();
+            });
+        };
+    });
+}
+
+
 fn main() {
     let grid_width = usize::pow(2, 7);
-    let grid_zoom = 8.0;
+    let grid_zoom = 9.0;
     let window_width = grid_width as f32 * grid_zoom;
     let dt = 0.02;
     App::new()
@@ -475,7 +536,12 @@ fn main() {
         }) // add global MPM grid
         .insert_resource(SquareSpawnInfo { tick: 0 }) // keep track of spawning new squares
         .add_plugins(DefaultPlugins)
+        .add_plugin(LogDiagnosticsPlugin::default())
+        .add_plugin(EguiPlugin)
+        .add_plugin(EntityCountDiagnosticsPlugin::default())
+        .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(spawn_system)
+        .add_system(ui_example.label("draw_ui").before("periodic_spawn"))
         .add_system(
             periodic_spawn
                 .label("periodic_spawn")
@@ -490,9 +556,12 @@ fn main() {
         .add_system(update_cells.label("update_cells").before("p2g"))
         .add_system(particles_to_grid.label("p2g").before("update_grid"))
         .add_system(update_grid.label("update_grid").before("g2p"))
-        .add_system(grid_to_particles.label("g2p").before("update_sprites"))
+        .add_system(grid_to_particles.label("g2p").before("collide_with_solid_cells"))
+        .add_system(collide_with_solid_cells.label("collide_with_solid_cells").before("update_sprites"))
+
         .add_system(update_sprites.label("update_sprites"))
         .run();
 }
+
 
 mod test;
