@@ -692,6 +692,13 @@ fn main() {
         .add_plugin(EguiPlugin)
         .add_plugin(EntityCountDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
+        .add_plugin(bevy_framepace::FramepacePlugin {
+            enabled: true,
+            framerate_limit: bevy_framepace::FramerateLimit::Auto,
+            warn_on_frame_drop: false,
+            safety_margin: std::time::Duration::from_micros(100),
+            power_saver: bevy_framepace::PowerSaver::Disabled,
+        })
         .add_startup_system(setup_camera)
         .add_startup_system(create_initial_spawners)
         .add_system(handle_inputs.label("handle_inputs").before("tick_spawners"))
