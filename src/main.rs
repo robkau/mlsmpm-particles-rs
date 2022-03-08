@@ -13,6 +13,7 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use rand::Rng;
 
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
+const DEFAULT_DT: f32 = 0.02;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -336,7 +337,7 @@ fn particles_to_grid(
     >,
 ) {
     let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
-
+    grid.dt -= 0.000015;
     particles.par_for_each(
         &pool,
         PAR_BATCH_SIZE,
@@ -650,6 +651,7 @@ fn handle_inputs(
             particles.for_each(|(id)| {
                 commands.entity(id).despawn();
             });
+            grid.dt = DEFAULT_DT;
             return;
         };
         if ui.button("(G)ravity toggle").clicked() || keys.just_pressed(KeyCode::G) {
@@ -661,9 +663,8 @@ fn handle_inputs(
 
 fn main() {
     let grid_width = usize::pow(2, 7);
-    let grid_zoom = 9.0;
+    let grid_zoom = 5.0;
     let window_width = grid_width as f32 * grid_zoom;
-    let dt = 0.02;
     let gravity = -0.3;
     App::new()
         .insert_resource(WindowDescriptor {
@@ -682,7 +683,7 @@ fn main() {
                 grid_width * grid_width
             ],
             width: grid_width,
-            dt,
+            dt: DEFAULT_DT,
             gravity,
             gravity_enabled: false,
             current_tick: 0,
