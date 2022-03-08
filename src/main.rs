@@ -424,6 +424,8 @@ fn tick_spawners(
     particles: Query<(), With<ParticleTag>>,
     spawners: Query<(&ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
+    // todo support spawn patterns - like spiral with arc per tick
+
     let tex = asset_server.load("branding/icon.png");
     let mut rng = rand::thread_rng();
     spawners.for_each(|(state)| {
@@ -494,6 +496,7 @@ fn make_solid_on_click(
                         && (grid_pos.y - position.0.y).abs() < 4.0
                     {
                         // todo i dont do anything right now!
+                        mass.0 += 2.;
                     }
                 },
             );
@@ -658,6 +661,9 @@ fn handle_inputs(
             grid.toggle_gravity();
             return;
         };
+        // todo i need a slider for particle despawn time!
+        // todo i need a slider for all particle constitutive models!
+        // todo i should update relevant spawners with new properties
     });
 }
 
@@ -737,3 +743,7 @@ fn main() {
 }
 
 mod test;
+
+// todo render to (animated) image output
+// https://github.com/bevyengine/bevy/issues/1207
+//https://github.com/rmsc/bevy/blob/render_to_file/examples/3d/render_to_file.rs
