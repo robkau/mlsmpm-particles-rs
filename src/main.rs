@@ -13,7 +13,7 @@ use bevy_egui::{egui, EguiContext, EguiPlugin};
 use rand::Rng;
 
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
-const DEFAULT_DT: f32 = 0.02;
+const DEFAULT_DT: f32 = 0.01;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -337,7 +337,6 @@ fn particles_to_grid(
     >,
 ) {
     let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
-    grid.dt -= 0.000015;
     particles.par_for_each(
         &pool,
         PAR_BATCH_SIZE,
@@ -661,6 +660,10 @@ fn handle_inputs(
             grid.toggle_gravity();
             return;
         };
+
+        // slider for DT.
+        ui.add(egui::Slider::new(&mut grid.dt, 0.0001..=0.05).text("dt"));
+
         // todo i need a slider for particle despawn time!
         // todo i need a slider for all particle constitutive models!
         // todo i should update relevant spawners with new properties
@@ -673,6 +676,7 @@ fn main() {
     let window_width = grid_width as f32 * grid_zoom;
     let gravity = -0.3;
     App::new()
+        .insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
             title: "mlsmpm-particles-rs".to_string(),
             width: window_width,
