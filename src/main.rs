@@ -9,7 +9,7 @@ use bevy::{
     prelude::*,
     tasks::prelude::*,
 };
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 use rand::Rng;
 
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
@@ -640,9 +640,13 @@ fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Windows>) {
 
 fn handle_inputs(
     mut commands: Commands,
-    mut egui_context: ResMut<EguiContext>,
+    windows: Res<Windows>,
     keys: Res<Input<KeyCode>>,
+    mut egui_context: ResMut<EguiContext>,
+    mut egui_settings: ResMut<EguiSettings>,
+    mut toggle_scale_factor: Local<Option<bool>>,
     mut grid: ResMut<Grid>,
+
     particles: Query<(Entity), With<ParticleTag>>,
 ) {
     // todo configure particle age
@@ -663,6 +667,20 @@ fn handle_inputs(
 
         // slider for DT.
         ui.add(egui::Slider::new(&mut grid.dt, 0.0001..=0.05).text("dt"));
+
+        // toggle hiDPI with '/'
+        if keys.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
+            *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
+
+            if let Some(window) = windows.get_primary() {
+                let scale_factor = if toggle_scale_factor.unwrap() {
+                    1.0 / window.scale_factor()
+                } else {
+                    1.0
+                };
+                egui_settings.scale_factor = scale_factor;
+            }
+        }
 
         // todo i need a slider for particle despawn time!
         // todo i need a slider for all particle constitutive models!
