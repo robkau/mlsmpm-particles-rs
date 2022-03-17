@@ -1,4 +1,4 @@
-use std::ops::Mul;
+use std::ops::{Add, Mul, Sub};
 use std::sync::Mutex;
 
 use bevy::diagnostic::{
@@ -14,6 +14,7 @@ use rand::Rng;
 
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
 const DEFAULT_DT: f32 = 0.01;
+const DEFAULT_GRAVITY: f32 = -0.3;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -40,21 +41,20 @@ struct Mass(f32);
 #[derive(Component)]
 struct AffineMomentum(Mat2);
 
-// particle constitutive model
 #[derive(Component)]
-struct RestDensity(f32);
+struct ConstitutiveModelFluid {
+    rest_density: f32,
+    dynamic_viscosity: f32,
+    eos_stiffness: f32,
+    eos_power: f32,
+}
 
-// particle constitutive model
 #[derive(Component)]
-struct DynamicViscosity(f32);
-
-// particle constitutive model
-#[derive(Component)]
-struct EosStiffness(f32);
-
-// particle constitutive model
-#[derive(Component)]
-struct EosPower(f32);
+struct ConstitutiveModelNeoHookeanHyperElastic {
+    deformation_gradient: Mat2,
+    elastic_lambda: f32,
+    elastic_mu: f32,
+}
 
 // tick the entity was created on
 #[derive(Component)]
@@ -275,6 +275,31 @@ fn grid_to_particles(
     );
 }
 
+fn update_deformation_gradients(
+    pool: Res<ComputeTaskPool>,
+    grid: Res<Grid>,
+    mut particles_solid: Query<
+        (
+            &mut Position,
+            &mut Velocity,
+            &mut AffineMomentum,
+            &mut ConstitutiveModelNeoHookeanHyperElastic,
+        ),
+        With<ParticleTag>,
+    >,
+) {
+    particles_solid.par_for_each_mut(
+        &pool,
+        PAR_BATCH_SIZE,
+        |(mut position, mut velocity, mut affine_momentum, mut pp)| {
+            let deformation_new: Mat2 = Mat2::IDENTITY
+                .add(affine_momentum.0.mul(grid.dt))
+                .mul_mat2(&pp.deformation_gradient);
+            pp.deformation_gradient = deformation_new;
+        },
+    );
+}
+
 fn delete_old_entities(
     mut commands: Commands,
     grid: Res<Grid>,
@@ -314,6 +339,9 @@ fn update_sprites(
     pool: Res<ComputeTaskPool>,
     mut particles: Query<(&mut Transform, &Position), With<ParticleTag>>,
 ) {
+    // todo adjust size relative to mass, min/max size determined by grid+window sizes
+    // todo color based on velocity. (maybe acceleration?)
+    // todo color based on constitutive model. (or initial texture.)
     particles.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(mut transform, position)| {
         transform.translation.x = position.0.x;
         transform.translation.y = position.0.y;
@@ -323,32 +351,25 @@ fn update_sprites(
 fn particles_to_grid(
     pool: Res<ComputeTaskPool>,
     mut grid: ResMut<Grid>,
-    particles: Query<
+    particles_fluid: Query<
+        (&Position, &Mass, &AffineMomentum, &ConstitutiveModelFluid),
+        With<ParticleTag>,
+    >,
+    particles_solid: Query<
         (
             &Position,
             &Mass,
             &AffineMomentum,
-            &RestDensity,
-            &DynamicViscosity,
-            &EosStiffness,
-            &EosPower,
+            &ConstitutiveModelNeoHookeanHyperElastic,
         ),
         With<ParticleTag>,
     >,
 ) {
-    let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
-    particles.par_for_each(
+    let momentum_changes = Mutex::new(vec![(Vec2::ZERO); grid.width * grid.width]);
+    particles_fluid.par_for_each(
         &pool,
         PAR_BATCH_SIZE,
-        |(
-            position,
-            mass,
-            affine_momentum,
-            rest_density,
-            dynamic_viscosity,
-            eos_stiffness,
-            eos_power,
-        )| {
+        |(position, mass, affine_momentum, pp)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
             let cell_diff = Vec2::new(
@@ -374,14 +395,14 @@ fn particles_to_grid(
             // fluid constitutive model
             let pressure = f32::max(
                 -0.1,
-                eos_stiffness.0 * (f32::powf(density / rest_density.0, eos_power.0) - 1.0),
+                pp.eos_stiffness * (f32::powf(density / pp.rest_density, pp.eos_power) - 1.0),
             );
             let mut stress = Mat2::from_cols(Vec2::new(-pressure, 0.0), Vec2::new(0.0, -pressure));
             let mut strain = affine_momentum.0.clone();
             let trace = strain.y_axis.x + strain.x_axis.y;
             strain.y_axis.x = trace;
             strain.x_axis.y = trace;
-            let viscosity_term = strain * dynamic_viscosity.0;
+            let viscosity_term = strain * pp.dynamic_viscosity;
             stress += viscosity_term;
 
             let eq_16_term_0 = stress * (-volume * 4.0 * grid.dt);
@@ -406,6 +427,68 @@ fn particles_to_grid(
         },
     );
 
+    particles_solid.par_for_each(
+        &pool,
+        PAR_BATCH_SIZE,
+        |(position, mass, affine_momentum, pp)| {
+            let cell_x: u32 = position.0.x as u32;
+            let cell_y: u32 = position.0.y as u32;
+            let cell_diff = Vec2::new(
+                position.0.x - cell_x as f32 - 0.5,
+                position.0.y - cell_y as f32 - 0.5,
+            );
+            let weights = quadratic_interpolation_weights(cell_diff);
+
+            // check surrounding 9 cells to get volume from density
+            let mut density: f32 = 0.0;
+            for gx in 0..3 {
+                for gy in 0..3 {
+                    let weight = weights[gx].x * weights[gy].y;
+                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
+                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
+                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+                    density += grid.cells[cell_at_index].mass * weight;
+                }
+            }
+
+            let volume = mass.0 / density;
+
+            let j: f32 = pp.deformation_gradient.determinant();
+            let volume_scaled = volume * j;
+
+            let f_t: Mat2 = pp.deformation_gradient.transpose();
+            let f_inv_t = f_t.inverse();
+            let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
+
+            let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
+            // todo base 2 or 10?
+            let p_term_1: Mat2 = f_inv_t.mul(j.log(2.) * pp.elastic_lambda);
+            let p_combined: Mat2 = p_term_0.add(p_term_1);
+
+            let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
+            let eq_16_term_0 = stress * (-volume_scaled * 4.0 * grid.dt);
+
+            // for all surrounding 9 cells
+            for gx in 0..3 {
+                for gy in 0..3 {
+                    let weight = weights[gx].x * weights[gy].y;
+                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
+                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
+                    let cell_dist = Vec2::new(
+                        cell_pos_x as f32 - position.0.x + 0.5,
+                        cell_pos_y as f32 - position.0.y + 0.5,
+                    );
+                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+
+                    // fused force/momentum update from MLS-MPM
+                    let mut m = momentum_changes.lock().unwrap();
+                    m[cell_at_index as usize] +=
+                        eq_16_term_0.mul_scalar(weight).mul_vec2(cell_dist);
+                }
+            }
+        },
+    );
+
     // apply calculated momentum changes
     for (i, change) in momentum_changes.lock().unwrap().iter().enumerate() {
         grid.cells[i].velocity += *change;
@@ -424,8 +507,18 @@ fn tick_spawners(
     spawners: Query<(&ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
     // todo support spawn patterns - like spiral with arc per tick
-
     let tex = asset_server.load("branding/icon.png");
+
+    // todo move into own system if it works.
+    if grid.current_tick % 1000 == 0 {
+        spawn_square(
+            &mut commands,
+            tex.clone(),
+            grid.current_tick,
+            Vec2::new(50., 50.),
+        );
+    }
+
     let mut rng = rand::thread_rng();
     spawners.for_each(|(state)| {
         if (grid.current_tick - state.created_at) % state.spawn_frequency == 0 {
@@ -440,12 +533,15 @@ fn tick_spawners(
                     rng.gen::<f32>() * state.particle_velocity_random_vec_b.y,
                 );
 
-                new_particle(
+                new_fluid_particle(
                     &mut commands,
                     tex.clone(),
                     grid.current_tick,
                     state.particle_origin,
-                    base_vel + random_a_contrib + random_b_contrib,
+                    Some(base_vel + random_a_contrib + random_b_contrib),
+                    None,
+                    None,
+                    None,
                 );
             }
         }
@@ -462,10 +558,7 @@ fn make_solid_on_click(
             &Position,
             &mut Velocity,
             &mut Mass,
-            &mut RestDensity,
-            &mut DynamicViscosity,
-            &mut EosStiffness,
-            &mut EosPower,
+            &mut ConstitutiveModelFluid,
         ),
         With<ParticleTag>,
     >,
@@ -482,15 +575,7 @@ fn make_solid_on_click(
             particles.par_for_each_mut(
                 &pool,
                 PAR_BATCH_SIZE,
-                |(
-                    position,
-                    mut velocity,
-                    mut mass,
-                    mut rest_density,
-                    mut dynamic_viscosity,
-                    mut eos_stiffness,
-                    mut eos_power,
-                )| {
+                |(position, mut velocity, mut mass, mut pp)| {
                     if (grid_pos.x - position.0.x).abs() < 4.0
                         && (grid_pos.y - position.0.y).abs() < 4.0
                     {
@@ -506,45 +591,95 @@ fn make_solid_on_click(
 fn spawn_square(commands: &mut Commands, tex: Handle<Image>, tick: usize, origin: Vec2) {
     let mut rng = rand::thread_rng();
     let square_vel = Vec2::new(rng.gen::<f32>() * 10.0 - 5., rng.gen::<f32>() * 10.0 - 5.);
-    for i in 0..5 {
-        for j in 0..5 {
-            new_particle(
+    for i in 0..25 {
+        for j in 0..25 {
+            new_solid_particle(
                 commands,
                 tex.clone(),
                 tick,
                 origin + Vec2::new(i as f32, j as f32),
-                square_vel,
+                Some(square_vel),
+                None,
+                None,
+                None,
             );
         }
     }
 }
 
-fn new_particle(commands: &mut Commands, tex: Handle<Image>, tick: usize, at: Vec2, vel: Vec2) {
+fn new_solid_particle(
+    commands: &mut Commands,
+    tex: Handle<Image>,
+    tick: usize,
+    at: Vec2,
+    vel: Option<Vec2>,
+    mass: Option<f32>,
+    pp: Option<ConstitutiveModelNeoHookeanHyperElastic>,
+    max_age: Option<usize>,
+) {
     commands
         .spawn_bundle(SpriteBundle {
             texture: tex.clone(),
-            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from grid size or just to look OK
+            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
             ..Default::default()
         })
         .insert_bundle((
             Position(at),
-            Velocity(vel),
-            Mass(1.0),
+            Velocity(vel.unwrap_or(Vec2::ZERO)),
+            Mass(mass.unwrap_or(1.)),
             AffineMomentum(Mat2::ZERO),
-            RestDensity(4.),
-            DynamicViscosity(0.1),
-            EosStiffness(10.),
-            EosPower(4.),
-            MaxAge(1000),
+            pp.unwrap_or(ConstitutiveModelNeoHookeanHyperElastic {
+                deformation_gradient: Mat2::IDENTITY,
+                elastic_lambda: 0.1,
+                elastic_mu: 2000.,
+            }),
+            MaxAge(max_age.unwrap_or(5000)),
             CreatedAt(tick),
             ParticleTag,
         ));
 }
 
+fn new_fluid_particle(
+    commands: &mut Commands,
+    tex: Handle<Image>,
+    tick: usize,
+    at: Vec2,
+    vel: Option<Vec2>,
+    mass: Option<f32>,
+    pp: Option<ConstitutiveModelFluid>,
+    max_age: Option<usize>,
+) {
+    commands
+        .spawn_bundle(SpriteBundle {
+            texture: tex.clone(),
+            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
+            ..Default::default()
+        })
+        .insert_bundle((
+            Position(at),
+            Velocity(vel.unwrap_or(Vec2::ZERO)),
+            Mass(mass.unwrap_or(1.)),
+            AffineMomentum(Mat2::ZERO),
+            pp.unwrap_or(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 10.,
+                eos_power: 4.,
+            }),
+            MaxAge(max_age.unwrap_or(5000)),
+            CreatedAt(tick),
+            ParticleTag,
+        ));
+}
+
+// todo 1: update each particle list in order
+// todo 2: one system for each constitutive model
+
 fn update_grid(mut grid: ResMut<Grid>) {
     grid.update();
 }
 
+// todo this might only want to target fluid particles since solids do this change inside p2g. or combine them both here.
 fn update_cells(
     pool: Res<ComputeTaskPool>,
     mut grid: ResMut<Grid>,
@@ -598,10 +733,10 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
         ParticleSpawnerInfo {
             // todo created_at and max_age as components.
             created_at: 0,
-            spawn_frequency: 1,
+            spawn_frequency: 4,
             max_particles: 15000,
             particle_origin: Vec2::new(grid.width as f32 / 4., grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(0.3, 0.3),
+            particle_velocity: Vec2::new(4., 12.),
             particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
             particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
         },
@@ -611,10 +746,10 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
-            spawn_frequency: 1,
+            spawn_frequency: 4,
             max_particles: 15000,
             particle_origin: Vec2::new(3. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-0.3, -0.3),
+            particle_velocity: Vec2::new(-9.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
             particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
         },
@@ -645,9 +780,10 @@ fn handle_inputs(
     mut egui_context: ResMut<EguiContext>,
     mut egui_settings: ResMut<EguiSettings>,
     mut toggle_scale_factor: Local<Option<bool>>,
+    mut currently_selected_spawner_id: Local<Option<usize>>,
     mut grid: ResMut<Grid>,
-
     particles: Query<(Entity), With<ParticleTag>>,
+    particle_spawners: Query<(Entity, &mut ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
     // todo configure particle age
     // todo place spawners and drag direction
@@ -664,6 +800,10 @@ fn handle_inputs(
             grid.toggle_gravity();
             return;
         };
+
+        // slider for gravity
+        // todo enabled/disabled based on gravity toggle.
+        ui.add(egui::Slider::new(&mut grid.gravity, -10.0..=10.).text("gravity"));
 
         // slider for DT.
         ui.add(egui::Slider::new(&mut grid.dt, 0.0001..=0.05).text("dt"));
@@ -682,6 +822,11 @@ fn handle_inputs(
             }
         }
 
+        // todo:
+        // one spawner can be selected (or new spawner to-create can be selected)
+        // click and drag when placing to set particle velocity
+        // the selected spawner shows its elements on left
+
         // todo i need a slider for particle despawn time!
         // todo i need a slider for all particle constitutive models!
         // todo i should update relevant spawners with new properties
@@ -692,7 +837,7 @@ fn main() {
     let grid_width = usize::pow(2, 7);
     let grid_zoom = 5.0;
     let window_width = grid_width as f32 * grid_zoom;
-    let gravity = -0.3;
+
     App::new()
         .insert_resource(Msaa { samples: 4 })
         .insert_resource(WindowDescriptor {
@@ -712,7 +857,7 @@ fn main() {
             ],
             width: grid_width,
             dt: DEFAULT_DT,
-            gravity,
+            gravity: DEFAULT_GRAVITY,
             gravity_enabled: false,
             current_tick: 0,
         }) // add global MPM grid
@@ -748,6 +893,11 @@ fn main() {
         .add_system(
             grid_to_particles
                 .label("g2p")
+                .before("update_deformation_gradients"),
+        )
+        .add_system(
+            update_deformation_gradients
+                .label("update_deformation_gradients")
                 .before("collide_with_solid_cells"),
         )
         .add_system(
