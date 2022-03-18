@@ -14,7 +14,7 @@ use rand::Rng;
 
 const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
 const DEFAULT_DT: f32 = 0.01;
-const DEFAULT_GRAVITY: f32 = -0.3;
+const DEFAULT_GRAVITY: f32 = -3.3;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -251,26 +251,27 @@ fn grid_to_particles(
             // 		}
             //
 
+            // todo this is applying too early?
             // boundaries
             let position_next = position.0 + velocity.0;
             let wall_min: f32 = 3.0;
             let wall_max: f32 = (grid.width - 4) as f32;
-            if position_next.x < wall_min {
-                velocity.0.x += wall_min - position_next.x;
-                velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
-            }
-            if position_next.x > wall_max {
-                velocity.0.x += wall_max - position_next.x;
-                velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
-            }
-            if position_next.y < wall_min {
-                velocity.0.y += wall_min - position_next.y;
-                velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
-            }
-            if position_next.y > wall_max {
-                velocity.0.y += wall_max - position_next.y;
-                velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
-            }
+            //if position_next.x < wall_min {
+            //    velocity.0.x += wall_min - position_next.x;
+            //    velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
+            //}
+            //if position_next.x > wall_max {
+            //    velocity.0.x += wall_max - position_next.x;
+            //    velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
+            //}
+            //if position_next.y < wall_min {
+            //    velocity.0.y += wall_min - position_next.y;
+            //    velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
+            //}
+            //if position_next.y > wall_max {
+            //    velocity.0.y += wall_max - position_next.y;
+            //    velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
+            //}
         },
     );
 }
@@ -507,15 +508,19 @@ fn tick_spawners(
     spawners: Query<(&ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
     // todo support spawn patterns - like spiral with arc per tick
-    let tex = asset_server.load("branding/icon.png");
+    let solid_tex = asset_server.load("solid_particle.png");
+    let liquid_tex = asset_server.load("liquid_particle.png");
 
     // todo move into own system if it works.
     if grid.current_tick % 1000 == 0 {
         spawn_square(
             &mut commands,
-            tex.clone(),
+            solid_tex.clone(),
+            liquid_tex.clone(),
             grid.current_tick,
+            Some(5000),
             Vec2::new(50., 50.),
+            false,
         );
     }
 
@@ -533,15 +538,25 @@ fn tick_spawners(
                     rng.gen::<f32>() * state.particle_velocity_random_vec_b.y,
                 );
 
-                new_fluid_particle(
+                //new_fluid_particle(
+                //    &mut commands,
+                //    tex.clone(),
+                //    grid.current_tick,
+                //    state.particle_origin,
+                //    Some(base_vel + random_a_contrib + random_b_contrib),
+                //    None,
+                //    None,
+                //    None,
+                //);
+
+                spawn_square(
                     &mut commands,
-                    tex.clone(),
+                    solid_tex.clone(),
+                    liquid_tex.clone(),
                     grid.current_tick,
+                    Some(1500),
                     state.particle_origin,
-                    Some(base_vel + random_a_contrib + random_b_contrib),
-                    None,
-                    None,
-                    None,
+                    true,
                 );
             }
         }
@@ -588,21 +603,42 @@ fn make_solid_on_click(
     }
 }
 
-fn spawn_square(commands: &mut Commands, tex: Handle<Image>, tick: usize, origin: Vec2) {
+fn spawn_square(
+    commands: &mut Commands,
+    solid_tex: Handle<Image>,
+    liquid_tex: Handle<Image>,
+    tick: usize,
+    max_age: Option<usize>,
+    origin: Vec2,
+    fluid: bool,
+) {
     let mut rng = rand::thread_rng();
     let square_vel = Vec2::new(rng.gen::<f32>() * 10.0 - 5., rng.gen::<f32>() * 10.0 - 5.);
     for i in 0..25 {
         for j in 0..25 {
-            new_solid_particle(
-                commands,
-                tex.clone(),
-                tick,
-                origin + Vec2::new(i as f32, j as f32),
-                Some(square_vel),
-                None,
-                None,
-                None,
-            );
+            if fluid {
+                new_fluid_particle(
+                    commands,
+                    liquid_tex.clone(),
+                    tick,
+                    origin + Vec2::new(i as f32, j as f32),
+                    Some(square_vel),
+                    None,
+                    None,
+                    max_age,
+                );
+            } else {
+                new_solid_particle(
+                    commands,
+                    solid_tex.clone(),
+                    tick,
+                    origin + Vec2::new(i as f32, j as f32),
+                    Some(square_vel),
+                    None,
+                    None,
+                    max_age,
+                );
+            }
         }
     }
 }
@@ -620,17 +656,17 @@ fn new_solid_particle(
     commands
         .spawn_bundle(SpriteBundle {
             texture: tex.clone(),
-            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
+            transform: Transform::from_scale(Vec3::splat(0.004)), // todo scale me from mass.
             ..Default::default()
         })
         .insert_bundle((
             Position(at),
             Velocity(vel.unwrap_or(Vec2::ZERO)),
-            Mass(mass.unwrap_or(1.)),
+            Mass(mass.unwrap_or(3.)),
             AffineMomentum(Mat2::ZERO),
             pp.unwrap_or(ConstitutiveModelNeoHookeanHyperElastic {
                 deformation_gradient: Mat2::IDENTITY,
-                elastic_lambda: 0.1,
+                elastic_lambda: 1000.,
                 elastic_mu: 2000.,
             }),
             MaxAge(max_age.unwrap_or(5000)),
@@ -731,12 +767,11 @@ fn update_cells(
 fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     commands.spawn_bundle((
         ParticleSpawnerInfo {
-            // todo created_at and max_age as components.
             created_at: 0,
-            spawn_frequency: 4,
-            max_particles: 15000,
-            particle_origin: Vec2::new(grid.width as f32 / 4., grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(4., 12.),
+            spawn_frequency: 61,
+            max_particles: 25000,
+            particle_origin: Vec2::new(1. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-9.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
             particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
         },
@@ -746,7 +781,48 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
-            spawn_frequency: 4,
+            spawn_frequency: 63,
+            max_particles: 10000,
+            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-9.3, -1.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
+            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
+        },
+        ParticleSpawnerTag,
+    ));
+
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            spawn_frequency: 65,
+            max_particles: 15000,
+            particle_origin: Vec2::new(2. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-9.3, -1.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
+            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
+        },
+        ParticleSpawnerTag,
+    ));
+
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            spawn_frequency: 66,
+            max_particles: 15000,
+            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-9.3, -1.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
+            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
+        },
+        ParticleSpawnerTag,
+    ));
+
+    // todo dissipation way before boundary??
+
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            spawn_frequency: 68,
             max_particles: 15000,
             particle_origin: Vec2::new(3. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(-9.3, -1.3),
@@ -835,7 +911,7 @@ fn handle_inputs(
 
 fn main() {
     let grid_width = usize::pow(2, 7);
-    let grid_zoom = 5.0;
+    let grid_zoom = 8.0;
     let window_width = grid_width as f32 * grid_zoom;
 
     App::new()
@@ -858,7 +934,7 @@ fn main() {
             width: grid_width,
             dt: DEFAULT_DT,
             gravity: DEFAULT_GRAVITY,
-            gravity_enabled: false,
+            gravity_enabled: true,
             current_tick: 0,
         }) // add global MPM grid
         .add_plugins(DefaultPlugins)
