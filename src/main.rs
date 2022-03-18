@@ -186,6 +186,7 @@ fn weighted_velocity_and_cell_dist_to_term(weighted_velocity: Vec2, cell_dist: V
 fn grid_to_particles(
     pool: Res<ComputeTaskPool>,
     grid: Res<Grid>,
+
     mut particles: Query<(&mut Position, &mut Velocity, &mut AffineMomentum), With<ParticleTag>>,
 ) {
     particles.par_for_each_mut(
@@ -237,19 +238,6 @@ fn grid_to_particles(
 
             position.0.y = f32::max(position.0.y, 1.0);
             position.0.y = f32::min(position.0.y, (grid.width - 2) as f32);
-
-            // cursor effects
-            // 		dist := mgl64.Vec2{
-            // 			p.p[0] - cx, // x distance
-            // 			p.p[1] - cy, // y distance
-            // 		}
-            // 		if dist.Dot(dist) < mouseRadius*mouseRadius {
-            // 			normFactor := dist.Len() / mouseRadius
-            // 			normFactor = math.Pow(math.Sqrt(normFactor), 8)
-            // 			force := dist.Normalize().Mul(normFactor / 2)
-            // 			p.v = p.v.Add(force)
-            // 		}
-            //
 
             // todo this is applying too early?
             // boundaries
@@ -568,38 +556,29 @@ fn make_solid_on_click(
     buttons: Res<Input<MouseButton>>, // has mouse clicks
     windows: Res<Windows>,            // has cursor position
     grid: Res<Grid>,
-    mut particles: Query<
-        (
-            &Position,
-            &mut Velocity,
-            &mut Mass,
-            &mut ConstitutiveModelFluid,
-        ),
-        With<ParticleTag>,
-    >,
+    mut particles: Query<(&Position, &mut Velocity, &mut Mass), With<ParticleTag>>,
 ) {
-    if buttons.just_pressed(MouseButton::Left) {
-        // Left button was pressed
+    let window = windows.get_primary().unwrap();
+    if let Some(win_pos) = window.cursor_position() {
+        // cursor is inside the window.
+        // translate window position to grid position
+        let scale = window.width() / grid.width as f32;
+        let grid_pos = win_pos / scale;
+        particles.par_for_each_mut(
+            &pool,
+            PAR_BATCH_SIZE,
+            |(position, mut velocity, mut mass)| {
+                let dist = Vec2::new((position.0.x - grid_pos.x), (position.0.y - grid_pos.y));
 
-        let window = windows.get_primary().unwrap();
-        if let Some(win_pos) = window.cursor_position() {
-            // cursor is inside the window.
-            // translate window position to grid position
-            let scale = window.width() / grid.width as f32;
-            let grid_pos = win_pos / scale;
-            particles.par_for_each_mut(
-                &pool,
-                PAR_BATCH_SIZE,
-                |(position, mut velocity, mut mass, mut pp)| {
-                    if (grid_pos.x - position.0.x).abs() < 4.0
-                        && (grid_pos.y - position.0.y).abs() < 4.0
-                    {
-                        // todo i dont do anything right now!
-                        mass.0 += 2.;
-                    }
-                },
-            );
-        }
+                let mouse_radius = 6.;
+
+                if dist.dot(dist) < mouse_radius * mouse_radius {
+                    let norm_factor = dist.length() / mouse_radius;
+                    let force = dist.normalize() * (norm_factor / 2.);
+                    velocity.0 += force;
+                }
+            },
+        );
     }
 }
 
@@ -768,8 +747,8 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
-            spawn_frequency: 61,
-            max_particles: 25000,
+            spawn_frequency: 300,
+            max_particles: 20000,
             particle_origin: Vec2::new(1. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(-9.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
