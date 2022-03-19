@@ -451,7 +451,7 @@ fn particles_to_grid(
 
             let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
             // todo base 2 or 10?
-            let p_term_1: Mat2 = f_inv_t.mul(j.log(2.) * pp.elastic_lambda);
+            let p_term_1: Mat2 = f_inv_t.mul(j.log(10.) * pp.elastic_lambda);
             let p_combined: Mat2 = p_term_0.add(p_term_1);
 
             let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
@@ -645,8 +645,8 @@ fn new_solid_particle(
             AffineMomentum(Mat2::ZERO),
             pp.unwrap_or(ConstitutiveModelNeoHookeanHyperElastic {
                 deformation_gradient: Mat2::IDENTITY,
-                elastic_lambda: 1000.,
-                elastic_mu: 2000.,
+                elastic_lambda: 1.,
+                elastic_mu: 8000.,
             }),
             MaxAge(max_age.unwrap_or(5000)),
             CreatedAt(tick),
