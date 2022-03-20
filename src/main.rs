@@ -12,9 +12,8 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 use rand::Rng;
 
-const BOUNDARY_FRICTION_DAMPING: f32 = 0.001;
-const DEFAULT_DT: f32 = 0.01;
-const DEFAULT_GRAVITY: f32 = -3.3;
+const DEFAULT_DT: f32 = 0.0015;
+const DEFAULT_GRAVITY: f32 = -9.81;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -41,7 +40,7 @@ struct Mass(f32);
 #[derive(Component)]
 struct AffineMomentum(Mat2);
 
-#[derive(Component)]
+#[derive(Clone, Component)]
 struct ConstitutiveModelFluid {
     rest_density: f32,
     dynamic_viscosity: f32,
@@ -49,11 +48,11 @@ struct ConstitutiveModelFluid {
     eos_power: f32,
 }
 
-#[derive(Component)]
+#[derive(Clone, Component)]
 struct ConstitutiveModelNeoHookeanHyperElastic {
     deformation_gradient: Mat2,
-    elastic_lambda: f32,
-    elastic_mu: f32,
+    elastic_lambda: f32, // youngs modulus
+    elastic_mu: f32,     // shear modulus
 }
 
 // tick the entity was created on
@@ -64,15 +63,38 @@ struct CreatedAt(usize);
 #[derive(Component)]
 struct MaxAge(usize);
 
-#[derive(Component)]
+// todo refactor.
+#[derive(Clone)]
+enum SpawnerPattern {
+    SingleParticle,
+    LineHorizontal,
+    LineVertical,
+    Cube,
+    Tower,
+    TriangleLeft,
+    TriangleRight,
+}
+
+#[derive(Clone)]
+enum ParticleType {
+    Fluid,
+    Solid,
+}
+
+#[derive(Clone, Component)]
 struct ParticleSpawnerInfo {
     created_at: usize,
+    pattern: SpawnerPattern,
     spawn_frequency: usize,
     max_particles: usize,
+    particle_duration: usize,
     particle_origin: Vec2,
     particle_velocity: Vec2,
     particle_velocity_random_vec_a: Vec2,
     particle_velocity_random_vec_b: Vec2,
+    particle_mass: f32,
+    particle_fluid_properties: Option<ConstitutiveModelFluid>,
+    particle_solid_properties: Option<ConstitutiveModelNeoHookeanHyperElastic>,
 }
 
 // MPM grid resource
@@ -118,28 +140,24 @@ impl Grid {
                     if cell.velocity.x < 0.0 {
                         cell.velocity.x = 0.0;
                     }
-                    cell.velocity.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
                 }
                 if x > self.width - 3 {
                     // can only stay in place or go left
                     if cell.velocity.x > 0.0 {
                         cell.velocity.x = 0.0;
                     }
-                    cell.velocity.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
                 }
                 if y < 2 {
                     // can only stay in place or go up
                     if cell.velocity.y < 0.0 {
                         cell.velocity.y = 0.0;
                     }
-                    cell.velocity.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
                 }
                 if y > self.width - 3 {
                     // can only stay in place or go down
                     if cell.velocity.y > 0.0 {
                         cell.velocity.y = 0.0;
                     }
-                    cell.velocity.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
                 }
             }
         }
@@ -239,26 +257,22 @@ fn grid_to_particles(
             position.0.y = f32::max(position.0.y, 1.0);
             position.0.y = f32::min(position.0.y, (grid.width - 2) as f32);
 
-            // todo this is applying too early?
-            // boundaries
-            let position_next = position.0 + velocity.0;
-            let wall_min: f32 = 3.0;
-            let wall_max: f32 = (grid.width - 4) as f32;
+            // todo this is strange
+            // predictive boundary velocity cap
+            //let position_next = position.0 + velocity.0;
+            //let wall_min: f32 = 3.0;
+            //let wall_max: f32 = (grid.width - 1) as f32 - wall_min;
             //if position_next.x < wall_min {
             //    velocity.0.x += wall_min - position_next.x;
-            //    velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
             //}
             //if position_next.x > wall_max {
             //    velocity.0.x += wall_max - position_next.x;
-            //    velocity.0.y *= 1.0 - BOUNDARY_FRICTION_DAMPING;
             //}
             //if position_next.y < wall_min {
             //    velocity.0.y += wall_min - position_next.y;
-            //    velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
             //}
             //if position_next.y > wall_max {
             //    velocity.0.y += wall_max - position_next.y;
-            //    velocity.0.x *= 1.0 - BOUNDARY_FRICTION_DAMPING;
             //}
         },
     );
@@ -301,29 +315,6 @@ fn delete_old_entities(
     });
 }
 
-fn collide_with_solid_cells(
-    mut commands: Commands,
-    pool: Res<ComputeTaskPool>,
-    grid: Res<Grid>,
-    particles: Query<(Entity, &Position, &Velocity), With<ParticleTag>>,
-) {
-    let mut particles_to_collide: Mutex<Vec<Entity>> = Mutex::new(Vec::new());
-
-    particles.par_for_each(&pool, PAR_BATCH_SIZE, |(id, position, velocity)| {
-        // boundaries
-        let position_next = position.0 + velocity.0;
-        if position_next.x < 90. && position_next.y < 50. {
-            particles_to_collide.lock().unwrap().push(id);
-        }
-    });
-
-    // apply the particles that collided
-    for (i, particle_id) in particles_to_collide.lock().unwrap().iter().enumerate() {
-        // todo i am useless.
-        //commands.entity(*particle_id).despawn();
-    }
-}
-
 fn update_sprites(
     pool: Res<ComputeTaskPool>,
     mut particles: Query<(&mut Transform, &Position), With<ParticleTag>>,
@@ -354,7 +345,7 @@ fn particles_to_grid(
         With<ParticleTag>,
     >,
 ) {
-    let momentum_changes = Mutex::new(vec![(Vec2::ZERO); grid.width * grid.width]);
+    let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
     particles_fluid.par_for_each(
         &pool,
         PAR_BATCH_SIZE,
@@ -499,62 +490,265 @@ fn tick_spawners(
     let solid_tex = asset_server.load("solid_particle.png");
     let liquid_tex = asset_server.load("liquid_particle.png");
 
-    // todo move into own system if it works.
-    if grid.current_tick % 1000 == 0 {
-        spawn_square(
-            &mut commands,
-            solid_tex.clone(),
-            liquid_tex.clone(),
-            grid.current_tick,
-            Some(5000),
-            Vec2::new(50., 50.),
-            false,
-        );
-    }
-
     let mut rng = rand::thread_rng();
-    spawners.for_each(|(state)| {
-        if (grid.current_tick - state.created_at) % state.spawn_frequency == 0 {
-            if particles.iter().count() < state.max_particles {
-                let base_vel = state.particle_velocity;
+    spawners.for_each(|(spawner_info)| {
+        if (grid.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency == 0 {
+            if particles.iter().count() < spawner_info.max_particles {
+                let base_vel = spawner_info.particle_velocity;
                 let random_a_contrib = Vec2::new(
-                    rng.gen::<f32>() * state.particle_velocity_random_vec_a.x,
-                    rng.gen::<f32>() * state.particle_velocity_random_vec_a.y,
+                    rng.gen::<f32>() * spawner_info.particle_velocity_random_vec_a.x,
+                    rng.gen::<f32>() * spawner_info.particle_velocity_random_vec_a.y,
                 );
                 let random_b_contrib = Vec2::new(
-                    rng.gen::<f32>() * state.particle_velocity_random_vec_b.x,
-                    rng.gen::<f32>() * state.particle_velocity_random_vec_b.y,
+                    rng.gen::<f32>() * spawner_info.particle_velocity_random_vec_b.x,
+                    rng.gen::<f32>() * spawner_info.particle_velocity_random_vec_b.y,
                 );
+                let spawn_vel = base_vel + random_a_contrib + random_b_contrib;
 
-                //new_fluid_particle(
-                //    &mut commands,
-                //    tex.clone(),
-                //    grid.current_tick,
-                //    state.particle_origin,
-                //    Some(base_vel + random_a_contrib + random_b_contrib),
-                //    None,
-                //    None,
-                //    None,
-                //);
+                if spawner_info.particle_fluid_properties.is_none()
+                    && spawner_info.particle_solid_properties.is_none()
+                {
+                    // incorrectly configured spawner. no particle properties.
+                    return;
+                }
+                // todo refactor.
+                let mut spawn_type = ParticleType::Fluid;
+                if !spawner_info.particle_solid_properties.is_none() {
+                    spawn_type = ParticleType::Solid;
+                }
 
-                spawn_square(
-                    &mut commands,
-                    solid_tex.clone(),
-                    liquid_tex.clone(),
-                    grid.current_tick,
-                    Some(1500),
-                    state.particle_origin,
-                    true,
-                );
+                match spawner_info.pattern {
+                    SpawnerPattern::SingleParticle => {
+                        if let ParticleType::Fluid = spawn_type {
+                            new_fluid_particle(
+                                &mut commands,
+                                liquid_tex.clone(),
+                                grid.current_tick,
+                                spawner_info.particle_origin,
+                                Some(base_vel),
+                                Some(spawner_info.particle_mass),
+                                spawner_info.particle_fluid_properties.clone(),
+                                Some(spawner_info.particle_duration),
+                            );
+                        } else {
+                            new_solid_particle(
+                                &mut commands,
+                                solid_tex.clone(),
+                                grid.current_tick,
+                                spawner_info.particle_origin,
+                                Some(base_vel),
+                                Some(spawner_info.particle_mass),
+                                spawner_info.particle_solid_properties.clone(),
+                                Some(spawner_info.particle_duration),
+                            );
+                        }
+                    }
+                    SpawnerPattern::LineHorizontal => {
+                        for x in 0..15 {
+                            if let ParticleType::Fluid = spawn_type {
+                                new_fluid_particle(
+                                    &mut commands,
+                                    liquid_tex.clone(),
+                                    grid.current_tick,
+                                    spawner_info.particle_origin + Vec2::new(x as f32, 0.),
+                                    Some(base_vel),
+                                    Some(spawner_info.particle_mass),
+                                    spawner_info.particle_fluid_properties.clone(),
+                                    Some(spawner_info.particle_duration),
+                                );
+                            } else {
+                                new_solid_particle(
+                                    &mut commands,
+                                    solid_tex.clone(),
+                                    grid.current_tick,
+                                    spawner_info.particle_origin + Vec2::new(x as f32, 0.),
+                                    Some(base_vel),
+                                    Some(spawner_info.particle_mass),
+                                    spawner_info.particle_solid_properties.clone(),
+                                    Some(spawner_info.particle_duration),
+                                );
+                            }
+                        }
+                    }
+                    SpawnerPattern::LineVertical => {
+                        for y in 0..15 {
+                            if let ParticleType::Fluid = spawn_type {
+                                new_fluid_particle(
+                                    &mut commands,
+                                    liquid_tex.clone(),
+                                    grid.current_tick,
+                                    spawner_info.particle_origin + Vec2::new(0. as f32, y as f32),
+                                    Some(base_vel),
+                                    Some(spawner_info.particle_mass),
+                                    spawner_info.particle_fluid_properties.clone(),
+                                    Some(spawner_info.particle_duration),
+                                );
+                            } else {
+                                new_solid_particle(
+                                    &mut commands,
+                                    solid_tex.clone(),
+                                    grid.current_tick,
+                                    spawner_info.particle_origin + Vec2::new(0., y as f32),
+                                    Some(base_vel),
+                                    Some(spawner_info.particle_mass),
+                                    spawner_info.particle_solid_properties.clone(),
+                                    Some(spawner_info.particle_duration),
+                                );
+                            }
+                        }
+                    }
+                    SpawnerPattern::Cube => {
+                        for x in 0..15 {
+                            for y in 0..15 {
+                                if let ParticleType::Fluid = spawn_type {
+                                    new_fluid_particle(
+                                        &mut commands,
+                                        liquid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, y as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_fluid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                } else {
+                                    new_solid_particle(
+                                        &mut commands,
+                                        solid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, y as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_solid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    SpawnerPattern::Tower => {
+                        for x in 0..30 {
+                            for y in 0..100 {
+                                if let ParticleType::Fluid = spawn_type {
+                                    new_fluid_particle(
+                                        &mut commands,
+                                        liquid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, y as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_fluid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                } else {
+                                    new_solid_particle(
+                                        &mut commands,
+                                        solid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, y as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_solid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    SpawnerPattern::TriangleLeft => {
+                        for x in 0..15 {
+                            for y in 0..x {
+                                // offset y by 0.5 every other time
+                                let mut ya: f32;
+                                if x % 2 == 0 {
+                                    ya = y as f32 - 0.25;
+                                } else {
+                                    ya = y as f32 + 0.25;
+                                }
+                                ya -= x as f32 / 2.;
+
+                                if let ParticleType::Fluid = spawn_type {
+                                    new_fluid_particle(
+                                        &mut commands,
+                                        liquid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, ya as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_fluid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                } else {
+                                    new_solid_particle(
+                                        &mut commands,
+                                        solid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new(x as f32, ya as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_solid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    SpawnerPattern::TriangleRight => {
+                        for x in 0..15 {
+                            for y in 0..x {
+                                // offset y by 0.5 every other time
+                                let mut ya: f32;
+                                if (x) % 2 == 0 {
+                                    ya = y as f32 - 0.25;
+                                } else {
+                                    ya = y as f32 + 0.25;
+                                }
+                                ya -= x as f32 / 2.;
+
+                                if let ParticleType::Fluid = spawn_type {
+                                    new_fluid_particle(
+                                        &mut commands,
+                                        liquid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new((15 - x) as f32, ya as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_fluid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                } else {
+                                    new_solid_particle(
+                                        &mut commands,
+                                        solid_tex.clone(),
+                                        grid.current_tick,
+                                        spawner_info.particle_origin
+                                            + Vec2::new((15 - x) as f32, ya as f32),
+                                        Some(spawn_vel),
+                                        Some(spawner_info.particle_mass),
+                                        spawner_info.particle_solid_properties.clone(),
+                                        Some(spawner_info.particle_duration),
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     });
 }
 
-fn make_solid_on_click(
+fn apply_cursor_effects(
     pool: Res<ComputeTaskPool>,
-    buttons: Res<Input<MouseButton>>, // has mouse clicks
-    windows: Res<Windows>,            // has cursor position
+    clicks: Res<Input<MouseButton>>, // has mouse clicks
+    windows: Res<Windows>,           // has cursor position
     grid: Res<Grid>,
     mut particles: Query<(&Position, &mut Velocity, &mut Mass), With<ParticleTag>>,
 ) {
@@ -564,6 +758,7 @@ fn make_solid_on_click(
         // translate window position to grid position
         let scale = window.width() / grid.width as f32;
         let grid_pos = win_pos / scale;
+        // if particle is near cursor, push it away.
         particles.par_for_each_mut(
             &pool,
             PAR_BATCH_SIZE,
@@ -579,46 +774,6 @@ fn make_solid_on_click(
                 }
             },
         );
-    }
-}
-
-fn spawn_square(
-    commands: &mut Commands,
-    solid_tex: Handle<Image>,
-    liquid_tex: Handle<Image>,
-    tick: usize,
-    max_age: Option<usize>,
-    origin: Vec2,
-    fluid: bool,
-) {
-    let mut rng = rand::thread_rng();
-    let square_vel = Vec2::new(rng.gen::<f32>() * 10.0 - 5., rng.gen::<f32>() * 10.0 - 5.);
-    for i in 0..25 {
-        for j in 0..25 {
-            if fluid {
-                new_fluid_particle(
-                    commands,
-                    liquid_tex.clone(),
-                    tick,
-                    origin + Vec2::new(i as f32, j as f32),
-                    Some(square_vel),
-                    None,
-                    None,
-                    max_age,
-                );
-            } else {
-                new_solid_particle(
-                    commands,
-                    solid_tex.clone(),
-                    tick,
-                    origin + Vec2::new(i as f32, j as f32),
-                    Some(square_vel),
-                    None,
-                    None,
-                    max_age,
-                );
-            }
-        }
     }
 }
 
@@ -678,7 +833,7 @@ fn new_fluid_particle(
             pp.unwrap_or(ConstitutiveModelFluid {
                 rest_density: 4.,
                 dynamic_viscosity: 0.1,
-                eos_stiffness: 10.,
+                eos_stiffness: 100.,
                 eos_power: 4.,
             }),
             MaxAge(max_age.unwrap_or(5000)),
@@ -744,69 +899,54 @@ fn update_cells(
 }
 
 fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
+    // shoot arrows to the right
+    // young's modulus and shear modulus of steel.
+    // 180 Gpa young's
+    // 78Gpa shear
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
-            spawn_frequency: 300,
-            max_particles: 20000,
-            particle_origin: Vec2::new(1. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-9.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
-            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
+            pattern: SpawnerPattern::TriangleRight,
+            spawn_frequency: 1000,
+            max_particles: 200000,
+            particle_duration: 40000,
+            particle_origin: Vec2::new(1. * grid.width as f32 / 4., 2. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(100.3, -1.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
+            particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
+            particle_mass: 2.,
+            particle_fluid_properties: None,
+            particle_solid_properties: Some(ConstitutiveModelNeoHookeanHyperElastic {
+                deformation_gradient: Default::default(),
+                elastic_lambda: 180. * 1000.,
+                elastic_mu: 78. * 1000.,
+            }),
         },
         ParticleSpawnerTag,
     ));
 
+    // spawn tower on first turn.
+    // young's modulus and shear modulus of wood/plywood
+    //9Gpa young's modulus
+    //0.6Gpa shear modulus
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
-            spawn_frequency: 63,
-            max_particles: 10000,
-            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-9.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
-            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
-        },
-        ParticleSpawnerTag,
-    ));
-
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            spawn_frequency: 65,
-            max_particles: 15000,
-            particle_origin: Vec2::new(2. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-9.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
-            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
-        },
-        ParticleSpawnerTag,
-    ));
-
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            spawn_frequency: 66,
-            max_particles: 15000,
-            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-9.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
-            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
-        },
-        ParticleSpawnerTag,
-    ));
-
-    // todo dissipation way before boundary??
-
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            spawn_frequency: 68,
-            max_particles: 15000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(-9.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.01, -0.01),
-            particle_velocity_random_vec_b: Vec2::new(0.01, 0.01),
+            pattern: SpawnerPattern::Tower,
+            spawn_frequency: 999999999999,
+            max_particles: 50000,
+            particle_duration: 500000,
+            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_velocity: Vec2::ZERO,
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 1.,
+            particle_fluid_properties: None,
+            particle_solid_properties: Some(ConstitutiveModelNeoHookeanHyperElastic {
+                deformation_gradient: Default::default(),
+                elastic_lambda: 9. * 1000.,
+                elastic_mu: 0.6 * 1000.,
+            }),
         },
         ParticleSpawnerTag,
     ));
@@ -835,13 +975,10 @@ fn handle_inputs(
     mut egui_context: ResMut<EguiContext>,
     mut egui_settings: ResMut<EguiSettings>,
     mut toggle_scale_factor: Local<Option<bool>>,
-    mut currently_selected_spawner_id: Local<Option<usize>>,
     mut grid: ResMut<Grid>,
     particles: Query<(Entity), With<ParticleTag>>,
-    particle_spawners: Query<(Entity, &mut ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
-    // todo configure particle age
-    // todo place spawners and drag direction
+    // todo place spawners and drag direction and click to configure
 
     egui::Window::new("Controls").show(egui_context.ctx_mut(), |ui| {
         if ui.button("(R)eset").clicked() || keys.just_pressed(KeyCode::R) {
@@ -857,11 +994,10 @@ fn handle_inputs(
         };
 
         // slider for gravity
-        // todo enabled/disabled based on gravity toggle.
         ui.add(egui::Slider::new(&mut grid.gravity, -10.0..=10.).text("gravity"));
 
         // slider for DT.
-        ui.add(egui::Slider::new(&mut grid.dt, 0.0001..=0.05).text("dt"));
+        ui.add(egui::Slider::new(&mut grid.dt, 0.0001..=0.01).text("dt"));
 
         // toggle hiDPI with '/'
         if keys.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
@@ -881,16 +1017,12 @@ fn handle_inputs(
         // one spawner can be selected (or new spawner to-create can be selected)
         // click and drag when placing to set particle velocity
         // the selected spawner shows its elements on left
-
-        // todo i need a slider for particle despawn time!
-        // todo i need a slider for all particle constitutive models!
-        // todo i should update relevant spawners with new properties
     });
 }
 
 fn main() {
     let grid_width = usize::pow(2, 7);
-    let grid_zoom = 8.0;
+    let grid_zoom = 6.0;
     let window_width = grid_width as f32 * grid_zoom;
 
     App::new()
@@ -934,11 +1066,11 @@ fn main() {
         .add_system(
             tick_spawners
                 .label("tick_spawners")
-                .before("make_solid_on_click"),
+                .before("apply_cursor_effects"),
         )
         .add_system(
-            make_solid_on_click
-                .label("make_solid_on_click")
+            apply_cursor_effects
+                .label("apply_cursor_effects")
                 .before("reset_grid"),
         )
         .add_system(reset_grid.label("reset_grid").before("update_cells"))
@@ -953,12 +1085,7 @@ fn main() {
         .add_system(
             update_deformation_gradients
                 .label("update_deformation_gradients")
-                .before("collide_with_solid_cells"),
-        )
-        .add_system(
-            collide_with_solid_cells
-                .label("collide_with_solid_cells")
-                .before("update_sprites"),
+                .before("delete_old_entities"),
         )
         .add_system(
             delete_old_entities
