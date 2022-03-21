@@ -12,8 +12,8 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 use rand::Rng;
 
-const DEFAULT_DT: f32 = 0.0015;
-const DEFAULT_GRAVITY: f32 = -9.81;
+const DEFAULT_DT: f32 = 0.0005;
+const DEFAULT_GRAVITY: f32 = -1.;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
@@ -388,6 +388,7 @@ fn particles_to_grid(
             let eq_16_term_0 = stress * (-volume * 4.0 * grid.dt);
 
             // for all surrounding 9 cells
+            let mut changes: [(usize, Vec2); 9] = Default::default();
             for gx in 0..3 {
                 for gy in 0..3 {
                     let weight = weights[gx].x * weights[gy].y;
@@ -398,11 +399,16 @@ fn particles_to_grid(
                         cell_pos_y as f32 - position.0.y + 0.5,
                     );
                     let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
-
+                    let changes_cell = gx + 3 * gy;
                     let momentum = eq_16_term_0 * weight * cell_dist;
-                    let mut m = momentum_changes.lock().unwrap();
-                    m[cell_at_index as usize] += momentum;
+                    changes[changes_cell].0 = cell_at_index;
+                    changes[changes_cell].1 = momentum;
                 }
+            }
+
+            let mut m = momentum_changes.lock().unwrap();
+            for change in changes.iter() {
+                m[change.0] += change.1;
             }
         },
     );
@@ -441,14 +447,14 @@ fn particles_to_grid(
             let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
 
             let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
-            // todo base 2 or 10?
-            let p_term_1: Mat2 = f_inv_t.mul(j.log(10.) * pp.elastic_lambda);
+            let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda);
             let p_combined: Mat2 = p_term_0.add(p_term_1);
 
             let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
             let eq_16_term_0 = stress * (-volume_scaled * 4.0 * grid.dt);
 
             // for all surrounding 9 cells
+            let mut changes: [(usize, Vec2); 9] = Default::default();
             for gx in 0..3 {
                 for gy in 0..3 {
                     let weight = weights[gx].x * weights[gy].y;
@@ -459,12 +465,17 @@ fn particles_to_grid(
                         cell_pos_y as f32 - position.0.y + 0.5,
                     );
                     let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+                    let changes_cell = gx + 3 * gy;
 
                     // fused force/momentum update from MLS-MPM
-                    let mut m = momentum_changes.lock().unwrap();
-                    m[cell_at_index as usize] +=
-                        eq_16_term_0.mul_scalar(weight).mul_vec2(cell_dist);
+                    changes[changes_cell].0 = cell_at_index;
+                    changes[changes_cell].1 = eq_16_term_0.mul_scalar(weight).mul_vec2(cell_dist);
                 }
+            }
+
+            let mut m = momentum_changes.lock().unwrap();
+            for change in changes.iter() {
+                m[change.0] += change.1;
             }
         },
     );
@@ -486,7 +497,7 @@ fn tick_spawners(
     particles: Query<(), With<ParticleTag>>,
     spawners: Query<(&ParticleSpawnerInfo), With<ParticleSpawnerTag>>,
 ) {
-    // todo support spawn patterns - like spiral with arc per tick
+    // todo recreate spiral spawn pattern - rate per spawn and rotation per spawn
     let solid_tex = asset_server.load("solid_particle.png");
     let liquid_tex = asset_server.load("liquid_particle.png");
 
@@ -544,7 +555,7 @@ fn tick_spawners(
                         }
                     }
                     SpawnerPattern::LineHorizontal => {
-                        for x in 0..15 {
+                        for x in 0..100 {
                             if let ParticleType::Fluid = spawn_type {
                                 new_fluid_particle(
                                     &mut commands,
@@ -606,7 +617,7 @@ fn tick_spawners(
                                         liquid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new(x as f32, y as f32),
+                                            + Vec2::new((x as f32 / 2.), (y as f32 / 2.)),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_fluid_properties.clone(),
@@ -618,7 +629,7 @@ fn tick_spawners(
                                         solid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new(x as f32, y as f32),
+                                            + Vec2::new((x as f32 / 2.), (y as f32 / 2.)),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_solid_properties.clone(),
@@ -629,15 +640,15 @@ fn tick_spawners(
                         }
                     }
                     SpawnerPattern::Tower => {
-                        for x in 0..30 {
-                            for y in 0..100 {
+                        for x in 0..120 {
+                            for y in 0..400 {
                                 if let ParticleType::Fluid = spawn_type {
                                     new_fluid_particle(
                                         &mut commands,
                                         liquid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new(x as f32, y as f32),
+                                            + Vec2::new(x as f32 / 4., y as f32 / 4.),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_fluid_properties.clone(),
@@ -649,7 +660,7 @@ fn tick_spawners(
                                         solid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new(x as f32, y as f32),
+                                            + Vec2::new(x as f32 / 4., y as f32 / 4.),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_solid_properties.clone(),
@@ -790,7 +801,7 @@ fn new_solid_particle(
     commands
         .spawn_bundle(SpriteBundle {
             texture: tex.clone(),
-            transform: Transform::from_scale(Vec3::splat(0.004)), // todo scale me from mass.
+            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
             ..Default::default()
         })
         .insert_bundle((
@@ -822,7 +833,7 @@ fn new_fluid_particle(
     commands
         .spawn_bundle(SpriteBundle {
             texture: tex.clone(),
-            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
+            transform: Transform::from_scale(Vec3::splat(0.001)), // todo scale me from mass.
             ..Default::default()
         })
         .insert_bundle((
@@ -870,6 +881,9 @@ fn update_cells(
             let weights = quadratic_interpolation_weights(cell_diff);
 
             // for all surrounding 9 cells
+
+            //collect momentum changes for surrounding 9 cells.
+            let mut changes: [(usize, f32, Vec2); 9] = Default::default();
             for gx in 0..3 {
                 for gy in 0..3 {
                     let weight = weights[gx].x * weights[gy].y;
@@ -884,10 +898,17 @@ fn update_cells(
                     let q = affine_momentum.0 * cell_dist;
                     let mass_contrib = weight * mass.0;
                     // mass and momentum update
-                    let mut mc = mass_contrib_changes.lock().unwrap();
-                    mc[cell_at_index].0 += mass_contrib;
-                    mc[cell_at_index].1 += (velocity.0 + q) * mass_contrib;
+                    // todo try crossbeam channel instead of mutex.
+                    let changes_cell = gx + 3 * gy;
+                    changes[changes_cell].0 = cell_at_index;
+                    changes[changes_cell].1 = mass_contrib;
+                    changes[changes_cell].2 = (velocity.0 + q) * mass_contrib;
                 }
+            }
+            let mut mc = mass_contrib_changes.lock().unwrap();
+            for change in changes.iter() {
+                mc[change.0].0 += change.1;
+                mc[change.0].1 += change.2;
             }
         },
     );
@@ -918,8 +939,8 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_fluid_properties: None,
             particle_solid_properties: Some(ConstitutiveModelNeoHookeanHyperElastic {
                 deformation_gradient: Default::default(),
-                elastic_lambda: 180. * 1000.,
-                elastic_mu: 78. * 1000.,
+                elastic_lambda: 10. * 180. * 1000.,
+                elastic_mu: 10. * 78. * 1000.,
             }),
         },
         ParticleSpawnerTag,
@@ -950,6 +971,30 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
         },
         ParticleSpawnerTag,
     ));
+
+    // make it rain!
+    //commands.spawn_bundle((
+    //    ParticleSpawnerInfo {
+    //        created_at: 0,
+    //        pattern: SpawnerPattern::Tower,
+    //        spawn_frequency: 500000000,
+    //        max_particles: 50000,
+    //        particle_duration: 100000,
+    //        particle_origin: Vec2::new(5., 1.),
+    //        particle_velocity: Vec2::new(10., 0.),
+    //        particle_velocity_random_vec_a: Vec2::new(-3., 10.),
+    //        particle_velocity_random_vec_b: Vec2::new(3., -10.),
+    //        particle_mass: 1.,
+    //        particle_fluid_properties: Some(ConstitutiveModelFluid {
+    //            rest_density: 4.,
+    //            dynamic_viscosity: 0.1,
+    //            eos_stiffness: 100.,
+    //            eos_power: 4.,
+    //        }),
+    //        particle_solid_properties: None,
+    //    },
+    //    ParticleSpawnerTag,
+    //));
 }
 
 fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Windows>) {
