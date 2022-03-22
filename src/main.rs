@@ -719,7 +719,7 @@ fn tick_spawners(
                         }
                     }
                     SpawnerPattern::TriangleRight => {
-                        for x in 0..15 {
+                        for x in 0..30 {
                             for y in 0..x {
                                 // offset y by 0.5 every other time
                                 let mut ya: f32;
@@ -736,7 +736,7 @@ fn tick_spawners(
                                         liquid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new((15 - x) as f32, ya as f32),
+                                            + Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_fluid_properties.clone(),
@@ -748,7 +748,7 @@ fn tick_spawners(
                                         solid_tex.clone(),
                                         grid.current_tick,
                                         spawner_info.particle_origin
-                                            + Vec2::new((15 - x) as f32, ya as f32),
+                                            + Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
                                         Some(spawn_vel),
                                         Some(spawner_info.particle_mass),
                                         spawner_info.particle_solid_properties.clone(),
@@ -960,7 +960,7 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             spawn_frequency: 800,
             max_particles: 200000,
             particle_duration: 40000,
-            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 2. * grid.width as f32 / 4.),
+            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 1. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(100.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
             particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
@@ -1220,8 +1220,8 @@ fn handle_inputs(
 }
 
 fn main() {
-    let grid_width = usize::pow(2, 7);
-    let grid_zoom = 6.0;
+    let grid_width = usize::pow(2, 8);
+    let grid_zoom = 5.0;
     let window_width = grid_width as f32 * grid_zoom;
 
     App::new()
