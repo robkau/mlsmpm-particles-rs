@@ -1,5 +1,4 @@
 use std::ops::{Add, Mul, Sub};
-use std::sync::Mutex;
 
 use bevy::diagnostic::{
     EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
@@ -12,13 +11,15 @@ use bevy::{
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 use rand::Rng;
 
-const DEFAULT_DT: f32 = 0.0005;
+const DEFAULT_DT: f32 = 0.0010;
 const DEFAULT_GRAVITY: f32 = -1.;
 const PAR_BATCH_SIZE: usize = usize::pow(2, 12);
 
 // Tags particle entities
 #[derive(Component)]
 struct ParticleTag;
+
+// todo move rendering to GPU shader. over 70% of traced CPU time is inside sprite stuff.
 
 // Tags particle spawner entities
 #[derive(Component)]
@@ -39,6 +40,12 @@ struct Mass(f32);
 // 2x2 affine momentum matrix
 #[derive(Component)]
 struct AffineMomentum(Mat2);
+
+#[derive(Component)]
+struct CellMassMomentumContributions([GridMassAndMomentumChange; 9]);
+
+#[derive(Clone, Copy)]
+struct GridMassAndMomentumChange(usize, f32, Vec2);
 
 #[derive(Clone, Component)]
 struct ConstitutiveModelFluid {
@@ -328,28 +335,109 @@ fn update_sprites(
     });
 }
 
-fn particles_to_grid(
+fn particles_to_grid_solids(
     pool: Res<ComputeTaskPool>,
-    mut grid: ResMut<Grid>,
-    particles_fluid: Query<
-        (&Position, &Mass, &AffineMomentum, &ConstitutiveModelFluid),
-        With<ParticleTag>,
-    >,
-    particles_solid: Query<
+    grid: Res<Grid>,
+    mut particles_solid: Query<
         (
             &Position,
             &Mass,
             &AffineMomentum,
             &ConstitutiveModelNeoHookeanHyperElastic,
+            &mut CellMassMomentumContributions,
         ),
         With<ParticleTag>,
     >,
 ) {
-    let momentum_changes = Mutex::new(vec![Vec2::ZERO; grid.width * grid.width]);
-    particles_fluid.par_for_each(
+    let num_particles = particles_solid.iter().count();
+    if num_particles < 1 {
+        return;
+    }
+    particles_solid.par_for_each_mut(
         &pool,
         PAR_BATCH_SIZE,
-        |(position, mass, affine_momentum, pp)| {
+        |(position, mass, affine_momentum, pp, mut mmc)| {
+            let cell_x: u32 = position.0.x as u32;
+            let cell_y: u32 = position.0.y as u32;
+            let cell_diff = Vec2::new(
+                position.0.x - cell_x as f32 - 0.5,
+                position.0.y - cell_y as f32 - 0.5,
+            );
+            let weights = quadratic_interpolation_weights(cell_diff);
+
+            // check surrounding 9 cells to get volume from density
+            let mut density: f32 = 0.0;
+            for gx in 0..3 {
+                for gy in 0..3 {
+                    let weight = weights[gx].x * weights[gy].y;
+                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
+                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
+                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+                    density += grid.cells[cell_at_index].mass * weight;
+                }
+            }
+
+            let volume = mass.0 / density;
+
+            let j: f32 = pp.deformation_gradient.determinant();
+            let volume_scaled = volume * j;
+
+            let f_t: Mat2 = pp.deformation_gradient.transpose();
+            let f_inv_t = f_t.inverse();
+            let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
+
+            let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
+            let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda);
+            let p_combined: Mat2 = p_term_0.add(p_term_1);
+
+            let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
+            let eq_16_term_0 = stress * (-volume_scaled * 4.0 * grid.dt);
+
+            // for all surrounding 9 cells
+            for gx in 0..3 {
+                for gy in 0..3 {
+                    let weight = weights[gx].x * weights[gy].y;
+                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
+                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
+                    let cell_dist = Vec2::new(
+                        cell_pos_x as f32 - position.0.x + 0.5,
+                        cell_pos_y as f32 - position.0.y + 0.5,
+                    );
+                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+                    // store the fused force/momentum update from MLS-MPM to apply onto grid later.
+                    // todo combine into grid(x,y) = total changes as they come in here...?
+                    mmc.0[gx + 3 * gy] = GridMassAndMomentumChange(
+                        cell_at_index,
+                        0.,
+                        eq_16_term_0.mul_scalar(weight).mul_vec2(cell_dist),
+                    );
+                }
+            }
+        },
+    );
+}
+fn particles_to_grid_fluids(
+    pool: Res<ComputeTaskPool>,
+    grid: Res<Grid>,
+    mut particles_fluid: Query<
+        (
+            &Position,
+            &Mass,
+            &AffineMomentum,
+            &ConstitutiveModelFluid,
+            &mut CellMassMomentumContributions,
+        ),
+        With<ParticleTag>,
+    >,
+) {
+    let num_particles = particles_fluid.iter().count();
+    if num_particles < 1 {
+        return;
+    }
+    particles_fluid.par_for_each_mut(
+        &pool,
+        PAR_BATCH_SIZE,
+        |(position, mass, affine_momentum, pp, mut mmc)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
             let cell_diff = Vec2::new(
@@ -388,7 +476,6 @@ fn particles_to_grid(
             let eq_16_term_0 = stress * (-volume * 4.0 * grid.dt);
 
             // for all surrounding 9 cells
-            let mut changes: [(usize, Vec2); 9] = Default::default();
             for gx in 0..3 {
                 for gy in 0..3 {
                     let weight = weights[gx].x * weights[gy].y;
@@ -399,91 +486,12 @@ fn particles_to_grid(
                         cell_pos_y as f32 - position.0.y + 0.5,
                     );
                     let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
-                    let changes_cell = gx + 3 * gy;
                     let momentum = eq_16_term_0 * weight * cell_dist;
-                    changes[changes_cell].0 = cell_at_index;
-                    changes[changes_cell].1 = momentum;
+                    mmc.0[gx + 3 * gy] = GridMassAndMomentumChange(cell_at_index, 0., momentum);
                 }
-            }
-
-            let mut m = momentum_changes.lock().unwrap();
-            for change in changes.iter() {
-                m[change.0] += change.1;
             }
         },
     );
-
-    particles_solid.par_for_each(
-        &pool,
-        PAR_BATCH_SIZE,
-        |(position, mass, affine_momentum, pp)| {
-            let cell_x: u32 = position.0.x as u32;
-            let cell_y: u32 = position.0.y as u32;
-            let cell_diff = Vec2::new(
-                position.0.x - cell_x as f32 - 0.5,
-                position.0.y - cell_y as f32 - 0.5,
-            );
-            let weights = quadratic_interpolation_weights(cell_diff);
-
-            // check surrounding 9 cells to get volume from density
-            let mut density: f32 = 0.0;
-            for gx in 0..3 {
-                for gy in 0..3 {
-                    let weight = weights[gx].x * weights[gy].y;
-                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
-                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
-                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
-                    density += grid.cells[cell_at_index].mass * weight;
-                }
-            }
-
-            let volume = mass.0 / density;
-
-            let j: f32 = pp.deformation_gradient.determinant();
-            let volume_scaled = volume * j;
-
-            let f_t: Mat2 = pp.deformation_gradient.transpose();
-            let f_inv_t = f_t.inverse();
-            let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
-
-            let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
-            let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda);
-            let p_combined: Mat2 = p_term_0.add(p_term_1);
-
-            let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
-            let eq_16_term_0 = stress * (-volume_scaled * 4.0 * grid.dt);
-
-            // for all surrounding 9 cells
-            let mut changes: [(usize, Vec2); 9] = Default::default();
-            for gx in 0..3 {
-                for gy in 0..3 {
-                    let weight = weights[gx].x * weights[gy].y;
-                    let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
-                    let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
-                    let cell_dist = Vec2::new(
-                        cell_pos_x as f32 - position.0.x + 0.5,
-                        cell_pos_y as f32 - position.0.y + 0.5,
-                    );
-                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
-                    let changes_cell = gx + 3 * gy;
-
-                    // fused force/momentum update from MLS-MPM
-                    changes[changes_cell].0 = cell_at_index;
-                    changes[changes_cell].1 = eq_16_term_0.mul_scalar(weight).mul_vec2(cell_dist);
-                }
-            }
-
-            let mut m = momentum_changes.lock().unwrap();
-            for change in changes.iter() {
-                m[change.0] += change.1;
-            }
-        },
-    );
-
-    // apply calculated momentum changes
-    for (i, change) in momentum_changes.lock().unwrap().iter().enumerate() {
-        grid.cells[i].velocity += *change;
-    }
 }
 
 fn reset_grid(mut grid: ResMut<Grid>) {
@@ -801,7 +809,7 @@ fn new_solid_particle(
     commands
         .spawn_bundle(SpriteBundle {
             texture: tex.clone(),
-            transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
+            transform: Transform::from_scale(Vec3::splat(0.001)), // todo scale me from mass.
             ..Default::default()
         })
         .insert_bundle((
@@ -816,6 +824,7 @@ fn new_solid_particle(
             }),
             MaxAge(max_age.unwrap_or(5000)),
             CreatedAt(tick),
+            CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
             ParticleTag,
         ));
 }
@@ -849,29 +858,46 @@ fn new_fluid_particle(
             }),
             MaxAge(max_age.unwrap_or(5000)),
             CreatedAt(tick),
+            CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
             ParticleTag,
         ));
 }
 
-// todo 1: update each particle list in order
-// todo 2: one system for each constitutive model
+fn update_grid(
+    mut grid: ResMut<Grid>,
+    particles: Query<(&CellMassMomentumContributions,), With<ParticleTag>>,
+) {
+    particles.for_each(|(mmc)| {
+        for change in mmc.0 .0.iter() {
+            grid.cells[change.0].velocity += change.2;
+        }
+    });
 
-fn update_grid(mut grid: ResMut<Grid>) {
     grid.update();
 }
 
-// todo this might only want to target fluid particles since solids do this change inside p2g. or combine them both here.
 fn update_cells(
     pool: Res<ComputeTaskPool>,
-    mut grid: ResMut<Grid>,
-    particles: Query<(&Position, &Velocity, &Mass, &AffineMomentum), With<ParticleTag>>,
+    grid: Res<Grid>,
+    mut particles: Query<
+        (
+            &Position,
+            &Velocity,
+            &Mass,
+            &AffineMomentum,
+            &mut CellMassMomentumContributions,
+        ),
+        With<ParticleTag>,
+    >,
 ) {
-    let mass_contrib_changes = Mutex::new(vec![(0.0, Vec2::ZERO); grid.width * grid.width]);
-
-    particles.par_for_each(
+    let num_particles = particles.iter().count();
+    if num_particles < 1 {
+        return;
+    }
+    particles.par_for_each_mut(
         &pool,
         PAR_BATCH_SIZE,
-        |(position, velocity, mass, affine_momentum)| {
+        |(position, velocity, mass, affine_momentum, mut mmc)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
             let cell_diff = Vec2::new(
@@ -880,10 +906,7 @@ fn update_cells(
             );
             let weights = quadratic_interpolation_weights(cell_diff);
 
-            // for all surrounding 9 cells
-
             //collect momentum changes for surrounding 9 cells.
-            let mut changes: [(usize, f32, Vec2); 9] = Default::default();
             for gx in 0..3 {
                 for gy in 0..3 {
                     let weight = weights[gx].x * weights[gy].y;
@@ -898,25 +921,29 @@ fn update_cells(
                     let q = affine_momentum.0 * cell_dist;
                     let mass_contrib = weight * mass.0;
                     // mass and momentum update
-                    // todo try crossbeam channel instead of mutex.
-                    let changes_cell = gx + 3 * gy;
-                    changes[changes_cell].0 = cell_at_index;
-                    changes[changes_cell].1 = mass_contrib;
-                    changes[changes_cell].2 = (velocity.0 + q) * mass_contrib;
+                    mmc.0[gx + 3 * gy] = GridMassAndMomentumChange(
+                        cell_at_index,
+                        mass_contrib,
+                        (velocity.0 + q) * mass_contrib,
+                    );
                 }
-            }
-            let mut mc = mass_contrib_changes.lock().unwrap();
-            for change in changes.iter() {
-                mc[change.0].0 += change.1;
-                mc[change.0].1 += change.2;
             }
         },
     );
+}
 
-    for (i, changes) in mass_contrib_changes.lock().unwrap().iter().enumerate() {
-        grid.cells[i].mass += (*changes).0;
-        grid.cells[i].velocity += (*changes).1;
-    }
+// todo look into replacing CellMassMomentumContributions with bevy events ..
+// .. after this one is done https://github.com/bevyengine/bevy/issues/2648
+fn apply_update_cell_computations(
+    mut grid: ResMut<Grid>,
+    mut particles: Query<(&CellMassMomentumContributions,), With<ParticleTag>>,
+) {
+    particles.for_each(|mmc| {
+        for change in mmc.0 .0.iter() {
+            grid.cells[change.0].mass += change.1;
+            grid.cells[change.0].velocity += change.2;
+        }
+    });
 }
 
 fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
@@ -925,13 +952,15 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     // 180 Gpa young's
     // 78Gpa shear
     commands.spawn_bundle((
+        // todo density option to spawners
+        // todo calculate correct particle mass from material density and particle density
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::TriangleRight,
-            spawn_frequency: 1000,
+            spawn_frequency: 800,
             max_particles: 200000,
             particle_duration: 40000,
-            particle_origin: Vec2::new(1. * grid.width as f32 / 4., 2. * grid.width as f32 / 4.),
+            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 2. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(100.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
             particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
@@ -939,8 +968,8 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_fluid_properties: None,
             particle_solid_properties: Some(ConstitutiveModelNeoHookeanHyperElastic {
                 deformation_gradient: Default::default(),
-                elastic_lambda: 10. * 180. * 1000.,
-                elastic_mu: 10. * 78. * 1000.,
+                elastic_lambda: 2. * 180. * 1000.,
+                elastic_mu: 2. * 78. * 1000.,
             }),
         },
         ParticleSpawnerTag,
@@ -973,28 +1002,153 @@ fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
     ));
 
     // make it rain!
-    //commands.spawn_bundle((
-    //    ParticleSpawnerInfo {
-    //        created_at: 0,
-    //        pattern: SpawnerPattern::Tower,
-    //        spawn_frequency: 500000000,
-    //        max_particles: 50000,
-    //        particle_duration: 100000,
-    //        particle_origin: Vec2::new(5., 1.),
-    //        particle_velocity: Vec2::new(10., 0.),
-    //        particle_velocity_random_vec_a: Vec2::new(-3., 10.),
-    //        particle_velocity_random_vec_b: Vec2::new(3., -10.),
-    //        particle_mass: 1.,
-    //        particle_fluid_properties: Some(ConstitutiveModelFluid {
-    //            rest_density: 4.,
-    //            dynamic_viscosity: 0.1,
-    //            eos_stiffness: 100.,
-    //            eos_power: 4.,
-    //        }),
-    //        particle_solid_properties: None,
-    //    },
-    //    ParticleSpawnerTag,
-    //));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 678,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2.5 * grid.width as f32 / 4. + 12.,
+                3. * grid.width as f32 / 4. + 16.,
+            ),
+            particle_velocity: Vec2::new(-20., -55.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 478,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2.5 * grid.width as f32 / 4. + 20.,
+                3. * grid.width as f32 / 4. + 12.,
+            ),
+            particle_velocity: Vec2::new(-20., -35.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 478,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2.5 * grid.width as f32 / 4. - 16.,
+                3. * grid.width as f32 / 4.,
+            ),
+            particle_velocity: Vec2::new(30., -35.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 800,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2.5 * grid.width as f32 / 4. - 8.,
+                3. * grid.width as f32 / 4.,
+            ),
+            particle_velocity: Vec2::new(40., -45.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 700,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(50., -45.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Cube,
+            spawn_frequency: 600,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2.5 * grid.width as f32 / 4. + 8.,
+                3. * grid.width as f32 / 4.,
+            ),
+            particle_velocity: Vec2::new(10., -45.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 0.25,
+            particle_fluid_properties: Some(ConstitutiveModelFluid {
+                rest_density: 4.,
+                dynamic_viscosity: 0.1,
+                eos_stiffness: 100.,
+                eos_power: 4.,
+            }),
+            particle_solid_properties: None,
+        },
+        ParticleSpawnerTag,
+    ));
 }
 
 fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Windows>) {
@@ -1119,8 +1273,27 @@ fn main() {
                 .before("reset_grid"),
         )
         .add_system(reset_grid.label("reset_grid").before("update_cells"))
-        .add_system(update_cells.label("update_cells").before("p2g"))
-        .add_system(particles_to_grid.label("p2g").before("update_grid"))
+        .add_system(
+            update_cells
+                .label("update_cells")
+                .before("apply_update_cell_computations"),
+        )
+        .add_system(
+            apply_update_cell_computations
+                .label("apply_update_cell_computations")
+                .before("p2g_f")
+                .before("p2g_s"),
+        )
+        .add_system(
+            particles_to_grid_fluids
+                .label("p2g_f")
+                .before("update_grid"),
+        )
+        .add_system(
+            particles_to_grid_solids
+                .label("p2g_s")
+                .before("update_grid"),
+        )
         .add_system(update_grid.label("update_grid").before("g2p"))
         .add_system(
             grid_to_particles
