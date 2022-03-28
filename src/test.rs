@@ -3,6 +3,7 @@ use bevy::math::{Mat2, Vec2};
 #[cfg(test)]
 mod tests {
     use crate::*;
+
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
@@ -68,9 +69,9 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -151,9 +152,9 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -228,9 +229,9 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -369,9 +370,9 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -396,9 +397,9 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
