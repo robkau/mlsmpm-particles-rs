@@ -76,7 +76,8 @@ pub(super) fn apply_cursor_effects(
     if let Some(win_pos) = window.cursor_position() {
         // cursor is inside the window.
         // translate window position to grid position
-        let scale = window.width() / grid.width as f32;
+        let size = Vec2::new(window.width() as f32, window.height() as f32);
+        let scale = f32::min(size.x, size.y) / grid.width as f32;
         let grid_pos = win_pos / scale;
         // if particle is near cursor, push it away.
         particles.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(position, mut velocity, mass)| {
