@@ -32,7 +32,7 @@ fn main() {
         .insert_resource(WindowDescriptor {
             title: "mlsmpm-particles-rs".to_string(),
             //width: DEFAULT_WINDOW_WIDTH,
-            //height: DEFAULT_WINDOW_HEIGHT, // todo mouse cursor not right when fullscrene.
+            //height: DEFAULT_WINDOW_HEIGHT, // todo mouse cursor still wrong in fullscreen!
             mode: BorderlessFullscreen,
             ..Default::default()
         })

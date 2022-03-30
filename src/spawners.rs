@@ -98,13 +98,13 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                2.5 * grid.width as f32 / 4. + 12.,
+                0.5 * grid.width as f32 / 4. + 12.,
                 3. * grid.width as f32 / 4. + 16.,
             ),
             particle_velocity: Vec2::new(-20., -55.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -122,13 +122,13 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                2.5 * grid.width as f32 / 4. + 20.,
+                0.5 * grid.width as f32 / 4. + 20.,
                 3. * grid.width as f32 / 4. + 12.,
             ),
             particle_velocity: Vec2::new(-20., -35.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -146,13 +146,13 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                2.5 * grid.width as f32 / 4. - 16.,
+                0.5 * grid.width as f32 / 4. - 16.,
                 3. * grid.width as f32 / 4.,
             ),
             particle_velocity: Vec2::new(30., -35.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -170,13 +170,13 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                2.5 * grid.width as f32 / 4. - 8.,
+                0.5 * grid.width as f32 / 4. - 8.,
                 3. * grid.width as f32 / 4.,
             ),
             particle_velocity: Vec2::new(40., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -193,11 +193,11 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             spawn_frequency: 700,
             max_particles: 75000,
             particle_duration: 100000,
-            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
+            particle_origin: Vec2::new(0.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(50., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -215,13 +215,13 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                2.5 * grid.width as f32 / 4. + 8.,
+                0.5 * grid.width as f32 / 4. + 8.,
                 3. * grid.width as f32 / 4.,
             ),
             particle_velocity: Vec2::new(10., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 0.25,
+            particle_mass: 1.0,
         },
         ConstitutiveModelFluid {
             rest_density: 4.,
@@ -455,8 +455,8 @@ pub(super) fn tick_spawners(
                         }
                     }
                     SpawnerPattern::Cube => {
-                        for x in 0..15 {
-                            for y in 0..15 {
+                        for x in 0..50 {
+                            for y in 0..50 {
                                 new_fluid_particle(
                                     &mut commands,
                                     &asset_server,
