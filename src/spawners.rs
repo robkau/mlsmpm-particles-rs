@@ -11,6 +11,7 @@ use super::world::*;
 pub(super) struct ParticleSpawnerTag;
 
 // todo refactor.
+#[allow(dead_code)]
 #[derive(Clone)]
 pub(super) enum SpawnerPattern {
     SingleParticle,

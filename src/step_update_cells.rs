@@ -4,7 +4,6 @@ use bevy::tasks::ComputeTaskPool;
 use crate::components::*;
 use crate::defaults::*;
 use crate::grid::*;
-use crate::world::*;
 
 pub(super) fn update_cells(
     pool: Res<ComputeTaskPool>,
