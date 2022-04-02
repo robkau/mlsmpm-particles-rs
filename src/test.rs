@@ -3,11 +3,13 @@ use bevy::math::{Mat2, Vec2};
 #[cfg(test)]
 mod tests {
     use crate::*;
+
     // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
 
     const TEST_GRID_WIDTH: usize = 10;
     const TEST_DT: f32 = 0.1;
+    const TEST_GRAVITY: f32 = -0.3;
 
     #[test]
     fn test_quadratic_interpolation_weights() {
@@ -67,12 +69,15 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
+            current_tick: 0,
+            gravity_enabled: true,
+            gravity: TEST_GRAVITY,
         });
         update_stage.add_system(update_cells);
         // add particle to world
@@ -86,7 +91,7 @@ mod tests {
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
-                Particle,
+                ParticleTag,
             ))
             .id();
         // iterate systems
@@ -147,12 +152,15 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
+            current_tick: 0,
+            gravity_enabled: true,
+            gravity: TEST_GRAVITY,
         };
         let particle_cell_index = gr.index_at(5, 5);
         gr.cells[particle_cell_index].mass = 0.25;
@@ -165,11 +173,15 @@ mod tests {
                 Position(Vec2::new(5.0, 5.0)),
                 Velocity(Vec2::new(0.0, -1.0)),
                 Mass(1.06),
+                RestDensity(4.),
+                DynamicViscosity(0.1),
+                EosStiffness(10.),
+                EosPower(4.),
                 AffineMomentum(Mat2::from_cols(
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
-                Particle,
+                ParticleTag,
             ))
             .id();
 
@@ -189,7 +201,7 @@ mod tests {
         assert_eq!(particle_momentum.unwrap().0.y_axis.x, -0.0248);
         assert_eq!(particle_momentum.unwrap().0.y_axis.y, 0.169);
 
-        //// local grid cells should be updated from particle.
+        //// get grid cells.
         let gr = world.get_resource::<Grid>().unwrap();
 
         //// local grid cells momentum (as velocity) should be updated from particle.
@@ -217,12 +229,15 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
+            current_tick: 0,
+            gravity_enabled: true,
+            gravity: TEST_GRAVITY,
         };
 
         let particle_1_id = world
@@ -235,7 +250,7 @@ mod tests {
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
-                Particle,
+                ParticleTag,
             ))
             .id();
 
@@ -249,7 +264,7 @@ mod tests {
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
-                Particle,
+                ParticleTag,
             ))
             .id();
 
@@ -355,12 +370,15 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
+            current_tick: 0,
+            gravity_enabled: true,
+            gravity: TEST_GRAVITY,
         };
         gr.cells[7].mass = 0.25;
         gr.cells[7].velocity = Vec2::new(1.2, 2.3);
@@ -379,12 +397,15 @@ mod tests {
             cells: vec![
                 Cell {
                     velocity: Vec2::ZERO,
-                    mass: 0.0
+                    mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
+            current_tick: 0,
+            gravity_enabled: true,
+            gravity: TEST_GRAVITY,
         };
 
         // add border cell with mass and velocity
