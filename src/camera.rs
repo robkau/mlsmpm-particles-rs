@@ -1,5 +1,3 @@
-use std::cmp::min;
-
 use bevy::math::{Vec2, Vec3};
 use bevy::prelude::{Commands, OrthographicCameraBundle, Res, Transform, Windows};
 

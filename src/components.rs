@@ -39,7 +39,7 @@ pub(super) struct ConstitutiveModelNeoHookeanHyperElastic {
     pub(super) deformation_gradient: Mat2,
     pub(super) elastic_lambda: f32,
     // youngs modulus
-    pub(super) elastic_mu: f32,     // shear modulus
+    pub(super) elastic_mu: f32, // shear modulus
 }
 
 // computed changes to-be-applied to grid on next steps

@@ -66,9 +66,7 @@ pub(super) fn handle_inputs(
 
 pub(super) fn apply_cursor_effects(
     pool: Res<ComputeTaskPool>,
-    clicks: Res<Input<MouseButton>>, // has mouse clicks
-    windows: Res<Windows>,           // has cursor position
-    world: Res<WorldState>,
+    windows: Res<Windows>, // has cursor position
     grid: Res<grid::Grid>,
     mut particles: Query<(&Position, &mut Velocity, &Mass), With<ParticleTag>>,
 ) {

@@ -24,7 +24,7 @@ impl Grid {
                 };
                 width * width
             ],
-            width: width,
+            width,
         }
     }
 

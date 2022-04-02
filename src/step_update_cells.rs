@@ -67,10 +67,10 @@ pub(super) fn update_cells(
 // .. after this one is done https://github.com/bevyengine/bevy/issues/2648
 pub(super) fn apply_update_cell_computations(
     mut grid: ResMut<Grid>,
-    particles: Query<(&CellMassMomentumContributions, ), With<ParticleTag>>,
+    particles: Query<(&CellMassMomentumContributions,), With<ParticleTag>>,
 ) {
     particles.for_each(|mmc| {
-        for change in mmc.0.0.iter() {
+        for change in mmc.0 .0.iter() {
             grid.cells[change.0].mass += change.1;
             grid.cells[change.0].velocity += change.2;
         }
