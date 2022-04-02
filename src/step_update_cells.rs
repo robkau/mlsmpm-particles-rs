@@ -8,7 +8,6 @@ use crate::world::*;
 
 pub(super) fn update_cells(
     pool: Res<ComputeTaskPool>,
-    world: Res<WorldState>,
     grid: Res<Grid>,
     mut particles: Query<
         (

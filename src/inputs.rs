@@ -1,7 +1,5 @@
 use bevy::math::Vec2;
-use bevy::prelude::{
-    Commands, Entity, Input, KeyCode, Local, MouseButton, Query, Res, ResMut, Windows, With,
-};
+use bevy::prelude::{Commands, Entity, Input, KeyCode, Local, Query, Res, ResMut, Windows, With};
 use bevy::tasks::ComputeTaskPool;
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
@@ -78,7 +76,7 @@ pub(super) fn apply_cursor_effects(
         let scale = f32::min(size.x, size.y) / grid.width as f32;
         let grid_pos = win_pos / scale;
         // if particle is near cursor, push it away.
-        particles.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(position, mut velocity, mass)| {
+        particles.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(position, mut velocity, _)| {
             let dist = Vec2::new(position.0.x - grid_pos.x, position.0.y - grid_pos.y);
 
             let mouse_radius = 6.;
