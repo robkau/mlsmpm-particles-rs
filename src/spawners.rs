@@ -12,6 +12,7 @@ use super::world::*;
 pub(super) struct ParticleSpawnerTag;
 
 // todo refactor.
+#[allow(dead_code)]
 #[derive(Clone)]
 pub(super) enum SpawnerPattern {
     SingleParticle,
@@ -69,7 +70,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::Tower,
-            spawn_frequency: 999999999999,
+            spawn_frequency: 99999999,
             max_particles: 50000,
             particle_duration: 500000,
             particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
