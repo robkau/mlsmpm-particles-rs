@@ -16,7 +16,9 @@ The Bevy ECS is really ergonomic, all it took to implement parallel processing w
 
 ---
 
-## Example Videos
+## Examples
+
+![Water, steel, and wood particles](renders/water_steel_wood.png?raw=true "water, steel, and wood particles")
 
 
 
