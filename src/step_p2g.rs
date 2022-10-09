@@ -57,7 +57,7 @@ pub(super) fn particles_to_grid_solids(
         let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
 
         let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
-        let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda); // todo is it ln?
+        let p_term_1: Mat2 = f_inv_t.mul(j.ln() * pp.elastic_lambda);
         let p_combined: Mat2 = p_term_0.add(p_term_1);
 
         let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);

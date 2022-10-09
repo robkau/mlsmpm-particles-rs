@@ -2,7 +2,7 @@
 //pub(super) const DEFAULT_WINDOW_HEIGHT: f32 = 1000.;
 // todo proper scaling.
 
-pub(super) const DEFAULT_GRID_WIDTH: usize = usize::pow(2, 9);
+pub(super) const DEFAULT_GRID_WIDTH: usize = usize::pow(2, 8);
 
 // todo use me when spawning...? maybe variable for density.
 // pub(super) const PARTICLES_ACROSS_GRID: usize = 1024;
