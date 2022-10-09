@@ -59,6 +59,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.,
         },
         steel_properties(),
+        asset_server.load("steel_particle.png"), // todo for each spawner func
         ParticleSpawnerTag,
     ));
 
@@ -327,7 +328,7 @@ pub(super) fn spawn_particles(
     spawner_info: &ParticleSpawnerInfo,
     cm: impl ConstitutiveModel + Copy,
     mut commands: &mut Commands,
-    asset_server: &AssetServer,
+    texture: &Handle<Image>,
     world: &WorldState,
 ) {
     let mut rng = rand::thread_rng();
@@ -346,7 +347,7 @@ pub(super) fn spawn_particles(
         SpawnerPattern::SingleParticle => {
             cm.new_particle(
                 commands,
-                asset_server,
+                texture,
                 spawner_info.particle_origin,
                 spawner_info.particle_mass,
                 world.current_tick,
@@ -358,7 +359,7 @@ pub(super) fn spawn_particles(
             for x in 0..100 {
                 cm.new_particle(
                     commands,
-                    asset_server,
+                    texture,
                     spawner_info.particle_origin + Vec2::new(x as f32, 0.),
                     spawner_info.particle_mass,
                     world.current_tick,
@@ -371,7 +372,7 @@ pub(super) fn spawn_particles(
             for y in 0..15 {
                 cm.new_particle(
                     commands,
-                    asset_server,
+                    texture,
                     spawner_info.particle_origin + Vec2::new(0., y as f32),
                     spawner_info.particle_mass,
                     world.current_tick,
@@ -385,7 +386,7 @@ pub(super) fn spawn_particles(
                 for y in 0..15 {
                     cm.new_particle(
                         commands,
-                        asset_server,
+                        texture,
                         spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -400,7 +401,7 @@ pub(super) fn spawn_particles(
                 for y in 0..200 {
                     cm.new_particle(
                         commands,
-                        asset_server,
+                        texture,
                         spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -423,7 +424,7 @@ pub(super) fn spawn_particles(
 
                     cm.new_particle(
                         commands,
-                        asset_server,
+                        texture,
                         spawner_info.particle_origin + Vec2::new(x as f32, ya as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -446,7 +447,7 @@ pub(super) fn spawn_particles(
 
                     cm.new_particle(
                         commands,
-                        asset_server,
+                        texture,
                         spawner_info.particle_origin
                             + Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
                         spawner_info.particle_mass,

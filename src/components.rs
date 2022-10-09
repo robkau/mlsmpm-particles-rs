@@ -36,7 +36,7 @@ impl ConstitutiveModel for NewtonianFluidModel {
     fn new_particle(
         self,
         mut commands: &mut Commands,
-        asset_server: &AssetServer,
+        texture: Handle<Image>,
         at: Vec2,
         mass: f32,
         created_at: usize,
@@ -45,7 +45,7 @@ impl ConstitutiveModel for NewtonianFluidModel {
     ) {
         commands
             .spawn_bundle(SpriteBundle {
-                texture: asset_server.load("liquid_particle.png"),
+                texture,
                 transform: Transform::from_scale(Vec3::splat(0.002 * mass)),
                 ..Default::default()
             })
@@ -76,7 +76,7 @@ impl ConstitutiveModel for NeoHookeanHyperElasticModel {
     fn new_particle(
         self,
         mut commands: &mut Commands,
-        asset_server: &AssetServer,
+        texture: Handle<Image>,
         at: Vec2,
         mass: f32,
         created_at: usize,
@@ -85,7 +85,7 @@ impl ConstitutiveModel for NeoHookeanHyperElasticModel {
     ) {
         commands
             .spawn_bundle(SpriteBundle {
-                texture: asset_server.load("solid_particle.png"),
+                texture,
                 transform: Transform::from_scale(Vec3::splat(0.005 * mass)),
                 ..Default::default()
             })
@@ -139,7 +139,7 @@ pub trait ConstitutiveModel {
     fn new_particle(
         self,
         commands: &mut Commands,
-        asset_server: &AssetServer,
+        texture: &Handle<Image>,
         at: Vec2,
         mass: f32,
         created_at: usize,
