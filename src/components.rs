@@ -46,7 +46,7 @@ impl ConstitutiveModel for NewtonianFluidModel {
         commands
             .spawn_bundle(SpriteBundle {
                 texture,
-                transform: Transform::from_scale(Vec3::splat(0.002 * mass)),
+                transform: Transform::from_scale(Vec3::splat(0.002)),
                 ..Default::default()
             })
             .insert_bundle((
@@ -86,7 +86,7 @@ impl ConstitutiveModel for NeoHookeanHyperElasticModel {
         commands
             .spawn_bundle(SpriteBundle {
                 texture,
-                transform: Transform::from_scale(Vec3::splat(0.005 * mass)),
+                transform: Transform::from_scale(Vec3::splat(0.005)),
                 ..Default::default()
             })
             .insert_bundle((

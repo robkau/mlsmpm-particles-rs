@@ -8,6 +8,10 @@ use super::components::*;
 use super::grid::*;
 use super::world::*;
 
+const LIQUID_PARTICLE_MASS: f32 = 0.5;
+const WOOD_PARTICLE_MASS: f32 = 1.;
+const STEEL_PARTICLE_MASS: f32 = 1.5;
+
 // Tags particle spawner entities
 #[derive(Component)]
 pub(super) struct ParticleSpawnerTag;
@@ -57,11 +61,11 @@ pub(super) fn create_initial_spawners(
             spawn_frequency: 800,
             max_particles: 200000,
             particle_duration: 40000,
-            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 1. * grid.width as f32 / 4.),
+            particle_origin: Vec2::new(1.1 * grid.width as f32 / 4., 1. * grid.width as f32 / 4.),
             particle_velocity: Vec2::new(100.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
             particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
-            particle_mass: 1.,
+            particle_mass: STEEL_PARTICLE_MASS,
         },
         steel_properties(),
         asset_server.load::<Image, &str>("steel_particle.png"),
@@ -79,95 +83,11 @@ pub(super) fn create_initial_spawners(
             spawn_frequency: 99999999,
             max_particles: 50000,
             particle_duration: 500000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 1.),
             particle_velocity: Vec2::ZERO,
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.,
-        },
-        NeoHookeanHyperElasticModel {
-            deformation_gradient: Default::default(),
-            elastic_lambda: 9. * 1000.,
-            elastic_mu: 0.6 * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower,
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.,
-        },
-        NeoHookeanHyperElasticModel {
-            deformation_gradient: Default::default(),
-            elastic_lambda: 9. * 1000.,
-            elastic_mu: 0.6 * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower,
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.,
-        },
-        NeoHookeanHyperElasticModel {
-            deformation_gradient: Default::default(),
-            elastic_lambda: 9. * 1000.,
-            elastic_mu: 0.6 * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower,
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.,
-        },
-        NeoHookeanHyperElasticModel {
-            deformation_gradient: Default::default(),
-            elastic_lambda: 9. * 1000.,
-            elastic_mu: 0.6 * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower,
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.,
+            particle_mass: WOOD_PARTICLE_MASS,
         },
         NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
@@ -183,7 +103,7 @@ pub(super) fn create_initial_spawners(
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::Cube,
-            spawn_frequency: 678,
+            spawn_frequency: 78,
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
@@ -193,7 +113,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(-20., -55.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -213,7 +133,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(-20., -35.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -233,7 +153,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(30., -35.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -253,7 +173,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(40., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -270,7 +190,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(50., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -290,7 +210,7 @@ pub(super) fn create_initial_spawners(
             particle_velocity: Vec2::new(10., -45.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: 1.0,
+            particle_mass: LIQUID_PARTICLE_MASS,
         },
         water_properties(),
         asset_server.load::<Image, &str>("liquid_particle.png"),
@@ -420,8 +340,8 @@ pub(super) fn spawn_particles(
             }
         }
         SpawnerPattern::Tower => {
-            for x in 0..60 {
-                for y in 0..200 {
+            for x in 0..80 {
+                for y in 0..90 {
                     cm.new_particle(
                         commands,
                         texture.clone(),
