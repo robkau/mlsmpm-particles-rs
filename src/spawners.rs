@@ -89,6 +89,86 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
         },
         ParticleSpawnerTag,
     ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Tower,
+            spawn_frequency: 99999999,
+            max_particles: 50000,
+            particle_duration: 500000,
+            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_velocity: Vec2::ZERO,
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 1.,
+        },
+        ConstitutiveModelNeoHookeanHyperElastic {
+            deformation_gradient: Default::default(),
+            elastic_lambda: 9. * 1000.,
+            elastic_mu: 0.6 * 1000.,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Tower,
+            spawn_frequency: 99999999,
+            max_particles: 50000,
+            particle_duration: 500000,
+            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_velocity: Vec2::ZERO,
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 1.,
+        },
+        ConstitutiveModelNeoHookeanHyperElastic {
+            deformation_gradient: Default::default(),
+            elastic_lambda: 9. * 1000.,
+            elastic_mu: 0.6 * 1000.,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Tower,
+            spawn_frequency: 99999999,
+            max_particles: 50000,
+            particle_duration: 500000,
+            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_velocity: Vec2::ZERO,
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 1.,
+        },
+        ConstitutiveModelNeoHookeanHyperElastic {
+            deformation_gradient: Default::default(),
+            elastic_lambda: 9. * 1000.,
+            elastic_mu: 0.6 * 1000.,
+        },
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Tower,
+            spawn_frequency: 99999999,
+            max_particles: 50000,
+            particle_duration: 500000,
+            particle_origin: Vec2::new(3. * grid.width as f32 / 4., 1.),
+            particle_velocity: Vec2::ZERO,
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: 1.,
+        },
+        ConstitutiveModelNeoHookeanHyperElastic {
+            deformation_gradient: Default::default(),
+            elastic_lambda: 9. * 1000.,
+            elastic_mu: 0.6 * 1000.,
+        },
+        ParticleSpawnerTag,
+    ));
 
     // make it rain!
     commands.spawn_bundle((
