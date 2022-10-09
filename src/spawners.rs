@@ -1,3 +1,4 @@
+use bevy::asset::AssetPath;
 use bevy::prelude::*;
 use bevy::render::render_resource::Texture;
 use rand::prelude::ThreadRng;
@@ -38,7 +39,11 @@ pub(super) struct ParticleSpawnerInfo {
     pub(super) particle_mass: f32,
 }
 
-pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
+pub(super) fn create_initial_spawners(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    grid: Res<Grid>,
+) {
     // shoot arrows to the right
     // young's modulus and shear modulus of steel.
     // 180 Gpa young's
@@ -59,7 +64,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.,
         },
         steel_properties(),
-        asset_server.load("steel_particle.png"), // todo for each spawner func
+        asset_server.load::<Image, &str>("steel_particle.png"),
         ParticleSpawnerTag,
     ));
 
@@ -85,6 +90,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
         },
+        asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -105,6 +111,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
         },
+        asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -125,6 +132,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
         },
+        asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -145,6 +153,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
         },
+        asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -165,6 +174,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
         },
+        asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,
     ));
 
@@ -186,6 +196,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -205,6 +216,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -224,6 +236,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -243,6 +256,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -259,6 +273,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
@@ -278,6 +293,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_mass: 1.0,
         },
         water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
 }
@@ -288,14 +304,21 @@ pub(super) fn tick_spawners(
     world: Res<WorldState>,
     particles: Query<(), With<ParticleTag>>,
     spawners_solids: Query<
-        (&ParticleSpawnerInfo, &NeoHookeanHyperElasticModel),
+        (
+            &ParticleSpawnerInfo,
+            &NeoHookeanHyperElasticModel,
+            &Handle<Image>,
+        ),
         With<ParticleSpawnerTag>,
     >,
-    spawners_fluids: Query<(&ParticleSpawnerInfo, &NewtonianFluidModel), With<ParticleSpawnerTag>>,
+    spawners_fluids: Query<
+        (&ParticleSpawnerInfo, &NewtonianFluidModel, &Handle<Image>),
+        With<ParticleSpawnerTag>,
+    >,
 ) {
     // todo recreate spiral spawn pattern - rate per spawn and rotation per spawn
 
-    spawners_solids.for_each(|(spawner_info, particle_properties)| {
+    spawners_solids.for_each(|(spawner_info, particle_properties, texture)| {
         if (world.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency == 0
             && particles.iter().count() < spawner_info.max_particles
         {
@@ -303,13 +326,13 @@ pub(super) fn tick_spawners(
                 spawner_info,
                 particle_properties.clone(),
                 &mut commands,
-                &*asset_server,
+                texture.clone(),
                 &world,
             );
         }
     });
 
-    spawners_fluids.for_each(|(spawner_info, particle_properties)| {
+    spawners_fluids.for_each(|(spawner_info, particle_properties, texture)| {
         if (world.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency == 0
             && particles.iter().count() < spawner_info.max_particles
         {
@@ -317,7 +340,7 @@ pub(super) fn tick_spawners(
                 spawner_info,
                 particle_properties.clone(),
                 &mut commands,
-                &*asset_server,
+                texture.clone(),
                 &world,
             );
         }
@@ -328,7 +351,7 @@ pub(super) fn spawn_particles(
     spawner_info: &ParticleSpawnerInfo,
     cm: impl ConstitutiveModel + Copy,
     mut commands: &mut Commands,
-    texture: &Handle<Image>,
+    texture: Handle<Image>,
     world: &WorldState,
 ) {
     let mut rng = rand::thread_rng();
@@ -347,7 +370,7 @@ pub(super) fn spawn_particles(
         SpawnerPattern::SingleParticle => {
             cm.new_particle(
                 commands,
-                texture,
+                texture.clone(),
                 spawner_info.particle_origin,
                 spawner_info.particle_mass,
                 world.current_tick,
@@ -359,7 +382,7 @@ pub(super) fn spawn_particles(
             for x in 0..100 {
                 cm.new_particle(
                     commands,
-                    texture,
+                    texture.clone(),
                     spawner_info.particle_origin + Vec2::new(x as f32, 0.),
                     spawner_info.particle_mass,
                     world.current_tick,
@@ -372,7 +395,7 @@ pub(super) fn spawn_particles(
             for y in 0..15 {
                 cm.new_particle(
                     commands,
-                    texture,
+                    texture.clone(),
                     spawner_info.particle_origin + Vec2::new(0., y as f32),
                     spawner_info.particle_mass,
                     world.current_tick,
@@ -386,7 +409,7 @@ pub(super) fn spawn_particles(
                 for y in 0..15 {
                     cm.new_particle(
                         commands,
-                        texture,
+                        texture.clone(),
                         spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -401,7 +424,7 @@ pub(super) fn spawn_particles(
                 for y in 0..200 {
                     cm.new_particle(
                         commands,
-                        texture,
+                        texture.clone(),
                         spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -424,7 +447,7 @@ pub(super) fn spawn_particles(
 
                     cm.new_particle(
                         commands,
-                        texture,
+                        texture.clone(),
                         spawner_info.particle_origin + Vec2::new(x as f32, ya as f32),
                         spawner_info.particle_mass,
                         world.current_tick,
@@ -447,7 +470,7 @@ pub(super) fn spawn_particles(
 
                     cm.new_particle(
                         commands,
-                        texture,
+                        texture.clone(),
                         spawner_info.particle_origin
                             + Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
                         spawner_info.particle_mass,

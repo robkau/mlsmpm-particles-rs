@@ -139,7 +139,7 @@ pub trait ConstitutiveModel {
     fn new_particle(
         self,
         commands: &mut Commands,
-        texture: &Handle<Image>,
+        texture: Handle<Image>,
         at: Vec2,
         mass: f32,
         created_at: usize,

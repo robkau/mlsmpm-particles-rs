@@ -81,7 +81,7 @@ pub(super) fn handle_inputs(
                 si,
                 steel_properties(),
                 &mut commands,
-                &*asset_server,
+                asset_server.load("steel_particle.png"),
                 &world,
             );
         }
@@ -106,7 +106,7 @@ pub(super) fn handle_inputs(
                 si,
                 water_properties(),
                 &mut commands,
-                &*asset_server,
+                asset_server.load("liquid_particle.png"),
                 &world,
             );
         }
