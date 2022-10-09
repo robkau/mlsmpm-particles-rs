@@ -1,5 +1,5 @@
 use bevy::math::{Mat2, Vec2};
-use bevy::prelude::Component;
+use bevy::prelude::*;
 
 // Tags particle entities
 #[derive(Component)]
@@ -24,22 +24,100 @@ pub(super) struct Mass(pub(super) f32);
 pub(super) struct AffineMomentum(pub(super) Mat2);
 
 // fluid constitutive model properties
-#[derive(Clone, Component)]
-// todo these fields and this struct doesnt need to be public?
-pub(super) struct ConstitutiveModelFluid {
+#[derive(Clone, Copy, Component)]
+pub(super) struct NewtonianFluidModel {
     pub(super) rest_density: f32,
     pub(super) dynamic_viscosity: f32,
     pub(super) eos_stiffness: f32,
     pub(super) eos_power: f32,
 }
 
+impl ConstitutiveModel for NewtonianFluidModel {
+    fn new_particle(
+        self,
+        commands: &mut Commands,
+        texture: Handle<Image>,
+        at: Vec2,
+        mass: f32,
+        created_at: usize,
+        vel: Option<Vec2>,
+        max_age: Option<usize>,
+    ) {
+        commands
+            .spawn_bundle(SpriteBundle {
+                texture,
+                transform: Transform::from_scale(Vec3::splat(0.002)),
+                ..Default::default()
+            })
+            .insert_bundle((
+                Position(at),
+                self,
+                Mass(mass),
+                Velocity(vel.unwrap_or(Vec2::ZERO)),
+                MaxAge(max_age.unwrap_or(5000)),
+                AffineMomentum(Mat2::ZERO),
+                CreatedAt(created_at),
+                CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
+                ParticleTag,
+            ));
+    }
+}
+
 // solid constitutive model properties
-#[derive(Clone, Component)]
-pub(super) struct ConstitutiveModelNeoHookeanHyperElastic {
+#[derive(Clone, Copy, Component)]
+pub(super) struct NeoHookeanHyperElasticModel {
     pub(super) deformation_gradient: Mat2,
     pub(super) elastic_lambda: f32,
     // youngs modulus
     pub(super) elastic_mu: f32, // shear modulus
+}
+
+impl ConstitutiveModel for NeoHookeanHyperElasticModel {
+    fn new_particle(
+        self,
+        commands: &mut Commands,
+        texture: Handle<Image>,
+        at: Vec2,
+        mass: f32,
+        created_at: usize,
+        vel: Option<Vec2>,
+        max_age: Option<usize>,
+    ) {
+        commands
+            .spawn_bundle(SpriteBundle {
+                texture,
+                transform: Transform::from_scale(Vec3::splat(0.005)),
+                ..Default::default()
+            })
+            .insert_bundle((
+                Position(at),
+                self,
+                Mass(mass),
+                Velocity(vel.unwrap_or(Vec2::ZERO)),
+                MaxAge(max_age.unwrap_or(5000)),
+                AffineMomentum(Mat2::ZERO),
+                CreatedAt(created_at),
+                CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
+                ParticleTag,
+            ));
+    }
+}
+
+pub(super) fn steel_properties() -> NeoHookeanHyperElasticModel {
+    NeoHookeanHyperElasticModel {
+        deformation_gradient: Default::default(),
+        elastic_lambda: 180. * 1000.,
+        elastic_mu: 78. * 1000.,
+    }
+}
+
+pub(super) fn water_properties() -> NewtonianFluidModel {
+    NewtonianFluidModel {
+        rest_density: 4.,
+        dynamic_viscosity: 0.1,
+        eos_stiffness: 100.,
+        eos_power: 4.,
+    }
 }
 
 // computed changes to-be-applied to grid on next steps
@@ -56,3 +134,16 @@ pub(super) struct CreatedAt(pub(super) usize);
 // entity deleted after this many ticks
 #[derive(Component)]
 pub(super) struct MaxAge(pub(super) usize);
+
+pub trait ConstitutiveModel {
+    fn new_particle(
+        self,
+        commands: &mut Commands,
+        texture: Handle<Image>,
+        at: Vec2,
+        mass: f32,
+        created_at: usize,
+        vel: Option<Vec2>,
+        max_age: Option<usize>,
+    );
+}

@@ -1,10 +1,9 @@
 [package]
 name = "mlsmpm-particles-rs"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
-bevy = {version = "0.6.1"}
-bevy_egui = "0.11"
-bevy_framepace = "0.3.0"
+bevy = {version = "0.8"}
+bevy_egui = "0.16"
 rand = "0.8"

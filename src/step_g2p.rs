@@ -1,6 +1,5 @@
 use bevy::math::Mat2;
 use bevy::prelude::*;
-use bevy::tasks::ComputeTaskPool;
 
 use crate::components::*;
 use crate::defaults::*;
@@ -9,13 +8,11 @@ use crate::world::*;
 
 // G2P MPM step
 pub(super) fn grid_to_particles(
-    pool: Res<ComputeTaskPool>,
     world: Res<WorldState>,
     grid: Res<Grid>,
     mut particles: Query<(&mut Position, &mut Velocity, &mut AffineMomentum), With<ParticleTag>>,
 ) {
     particles.par_for_each_mut(
-        &pool,
         PAR_BATCH_SIZE,
         |(mut position, mut velocity, mut affine_momentum)| {
             //// reset particle velocity. we calculate it from scratch each step using the grid
