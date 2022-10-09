@@ -24,7 +24,6 @@ pub(super) struct Mass(pub(super) f32);
 pub(super) struct AffineMomentum(pub(super) Mat2);
 
 // fluid constitutive model properties
-// todo these fields and this struct doesnt need to be public?
 #[derive(Clone, Copy, Component)]
 pub(super) struct NewtonianFluidModel {
     pub(super) rest_density: f32,
@@ -47,7 +46,7 @@ impl ConstitutiveModel for NewtonianFluidModel {
         commands
             .spawn_bundle(SpriteBundle {
                 texture: asset_server.load("liquid_particle.png"),
-                transform: Transform::from_scale(Vec3::splat(0.002)), // todo scale me from mass.
+                transform: Transform::from_scale(Vec3::splat(0.002 * mass)),
                 ..Default::default()
             })
             .insert_bundle((
@@ -87,7 +86,7 @@ impl ConstitutiveModel for NeoHookeanHyperElasticModel {
         commands
             .spawn_bundle(SpriteBundle {
                 texture: asset_server.load("solid_particle.png"),
-                transform: Transform::from_scale(Vec3::splat(0.005)), // todo scale me from mass.
+                transform: Transform::from_scale(Vec3::splat(0.005 * mass)),
                 ..Default::default()
             })
             .insert_bundle((

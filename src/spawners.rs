@@ -56,7 +56,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_velocity: Vec2::new(100.3, -1.3),
             particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
             particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
-            particle_mass: 2.,
+            particle_mass: 1.,
         },
         steel_properties(),
         ParticleSpawnerTag,
