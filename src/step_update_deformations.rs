@@ -12,10 +12,7 @@ pub(super) fn update_deformation_gradients(
     pool: Res<ComputeTaskPool>,
     world: Res<WorldState>,
     mut particles_solid: Query<
-        (
-            &AffineMomentum,
-            &mut ConstitutiveModelNeoHookeanHyperElastic,
-        ),
+        (&AffineMomentum, &mut NeoHookeanHyperElasticModel),
         With<ParticleTag>,
     >,
 ) {

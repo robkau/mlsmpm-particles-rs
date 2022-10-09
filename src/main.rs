@@ -18,7 +18,6 @@ mod defaults;
 mod expire_old;
 mod grid;
 mod inputs;
-mod particle;
 mod particle_sprites;
 mod spawners;
 mod step_g2p;
@@ -67,11 +66,6 @@ fn main() {
         .add_system(
             spawners::tick_spawners
                 .label("tick_spawners")
-                .before("apply_cursor_effects"),
-        )
-        .add_system(
-            inputs::apply_cursor_effects
-                .label("apply_cursor_effects")
                 .before("reset_grid"),
         )
         .add_system(grid::reset_grid.label("reset_grid").before("update_cells"))
