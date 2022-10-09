@@ -1,12 +1,10 @@
 use bevy::prelude::*;
-use bevy::tasks::ComputeTaskPool;
 
 use crate::components::*;
 use crate::defaults::*;
 use crate::grid::*;
 
 pub(super) fn update_cells(
-    pool: Res<ComputeTaskPool>,
     grid: Res<Grid>,
     mut particles: Query<
         (
@@ -24,7 +22,6 @@ pub(super) fn update_cells(
         return;
     }
     particles.par_for_each_mut(
-        &pool,
         PAR_BATCH_SIZE,
         |(position, velocity, mass, affine_momentum, mut mmc)| {
             let cell_x: u32 = position.0.x as u32;

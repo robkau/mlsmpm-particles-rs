@@ -3,7 +3,6 @@ use bevy::prelude::{
     AssetServer, Commands, Entity, Input, KeyCode, Local, MouseButton, Query, Res, ResMut, Windows,
     With,
 };
-use bevy::tasks::ComputeTaskPool;
 use bevy_egui::{egui, EguiContext, EguiSettings};
 use std::thread::spawn;
 
@@ -22,7 +21,6 @@ pub(super) struct ClickAndDragState {
 
 pub(super) fn handle_inputs(
     mut commands: Commands,
-    pool: Res<ComputeTaskPool>,
     windows: Res<Windows>,
     asset_server: Res<AssetServer>,
     btn: Res<Input<MouseButton>>,
@@ -44,7 +42,7 @@ pub(super) fn handle_inputs(
         let grid_pos = win_pos / scale;
 
         // if particle is near cursor, push it away.
-        particles.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(_, position, mut velocity, _)| {
+        particles.par_for_each_mut(PAR_BATCH_SIZE, |(_, position, mut velocity, _)| {
             let dist = Vec2::new(position.0.x - grid_pos.x, position.0.y - grid_pos.y);
 
             let mouse_radius = 6.;

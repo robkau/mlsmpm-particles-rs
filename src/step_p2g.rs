@@ -2,7 +2,6 @@ use std::ops::{Add, Mul, Sub};
 
 use bevy::math::Mat2;
 use bevy::prelude::*;
-use bevy::tasks::ComputeTaskPool;
 
 use crate::components::*;
 use crate::defaults::*;
@@ -10,7 +9,6 @@ use crate::grid::*;
 use crate::world::*;
 
 pub(super) fn particles_to_grid_solids(
-    pool: Res<ComputeTaskPool>,
     grid: Res<Grid>,
     world: Res<WorldState>,
     mut particles_solid: Query<
@@ -28,7 +26,7 @@ pub(super) fn particles_to_grid_solids(
     if num_particles < 1 {
         return;
     }
-    particles_solid.par_for_each_mut(&pool, PAR_BATCH_SIZE, |(position, mass, _, pp, mut mmc)| {
+    particles_solid.par_for_each_mut(PAR_BATCH_SIZE, |(position, mass, _, pp, mut mmc)| {
         let cell_x: u32 = position.0.x as u32;
         let cell_y: u32 = position.0.y as u32;
         let cell_diff = Vec2::new(
@@ -59,7 +57,7 @@ pub(super) fn particles_to_grid_solids(
         let f_minus_f_inv_t = pp.deformation_gradient.sub(f_inv_t);
 
         let p_term_0: Mat2 = f_minus_f_inv_t.mul(pp.elastic_mu);
-        let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda);
+        let p_term_1: Mat2 = f_inv_t.mul(j.log10() * pp.elastic_lambda); // todo is it ln?
         let p_combined: Mat2 = p_term_0.add(p_term_1);
 
         let stress: Mat2 = p_combined.mul_mat2(&f_t).mul(1.0 / j);
@@ -89,7 +87,6 @@ pub(super) fn particles_to_grid_solids(
 }
 
 pub(super) fn particles_to_grid_fluids(
-    pool: Res<ComputeTaskPool>,
     world: Res<WorldState>,
     grid: Res<Grid>,
     mut particles_fluid: Query<
@@ -108,7 +105,6 @@ pub(super) fn particles_to_grid_fluids(
         return;
     }
     particles_fluid.par_for_each_mut(
-        &pool,
         PAR_BATCH_SIZE,
         |(position, mass, affine_momentum, pp, mut mmc)| {
             let cell_x: u32 = position.0.x as u32;

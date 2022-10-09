@@ -99,7 +99,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_velocity_random_vec_b: Vec2::ZERO,
             particle_mass: 1.,
         },
-        ConstitutiveModelNeoHookeanHyperElastic {
+        NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
@@ -119,7 +119,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_velocity_random_vec_b: Vec2::ZERO,
             particle_mass: 1.,
         },
-        ConstitutiveModelNeoHookeanHyperElastic {
+        NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
@@ -139,7 +139,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_velocity_random_vec_b: Vec2::ZERO,
             particle_mass: 1.,
         },
-        ConstitutiveModelNeoHookeanHyperElastic {
+        NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
@@ -159,7 +159,7 @@ pub(super) fn create_initial_spawners(mut commands: Commands, grid: Res<Grid>) {
             particle_velocity_random_vec_b: Vec2::ZERO,
             particle_mass: 1.,
         },
-        ConstitutiveModelNeoHookeanHyperElastic {
+        NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
             elastic_lambda: 9. * 1000.,
             elastic_mu: 0.6 * 1000.,
