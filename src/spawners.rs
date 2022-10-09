@@ -5,7 +5,7 @@ use super::components::*;
 use super::grid::*;
 use super::world::*;
 
-const LIQUID_PARTICLE_MASS: f32 = 0.5;
+const LIQUID_PARTICLE_MASS: f32 = 1.;
 const WOOD_PARTICLE_MASS: f32 = 1.;
 const STEEL_PARTICLE_MASS: f32 = 1.5;
 
