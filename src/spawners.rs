@@ -1,7 +1,4 @@
-use bevy::asset::AssetPath;
 use bevy::prelude::*;
-use bevy::render::render_resource::Texture;
-use rand::prelude::ThreadRng;
 use rand::Rng;
 
 use super::components::*;
@@ -220,7 +217,6 @@ pub(super) fn create_initial_spawners(
 
 pub(super) fn tick_spawners(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
     world: Res<WorldState>,
     particles: Query<(), With<ParticleTag>>,
     spawners_solids: Query<
@@ -244,7 +240,7 @@ pub(super) fn tick_spawners(
         {
             spawn_particles(
                 spawner_info,
-                particle_properties.clone(),
+                *particle_properties,
                 &mut commands,
                 texture.clone(),
                 &world,
@@ -258,7 +254,7 @@ pub(super) fn tick_spawners(
         {
             spawn_particles(
                 spawner_info,
-                particle_properties.clone(),
+                *particle_properties,
                 &mut commands,
                 texture.clone(),
                 &world,
@@ -270,7 +266,7 @@ pub(super) fn tick_spawners(
 pub(super) fn spawn_particles(
     spawner_info: &ParticleSpawnerInfo,
     cm: impl ConstitutiveModel + Copy,
-    mut commands: &mut Commands,
+    commands: &mut Commands,
     texture: Handle<Image>,
     world: &WorldState,
 ) {
@@ -290,7 +286,7 @@ pub(super) fn spawn_particles(
         SpawnerPattern::SingleParticle => {
             cm.new_particle(
                 commands,
-                texture.clone(),
+                texture,
                 spawner_info.particle_origin,
                 spawner_info.particle_mass,
                 world.current_tick,

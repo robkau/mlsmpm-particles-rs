@@ -35,7 +35,7 @@ pub(super) struct NewtonianFluidModel {
 impl ConstitutiveModel for NewtonianFluidModel {
     fn new_particle(
         self,
-        mut commands: &mut Commands,
+        commands: &mut Commands,
         texture: Handle<Image>,
         at: Vec2,
         mass: f32,
@@ -75,7 +75,7 @@ pub(super) struct NeoHookeanHyperElasticModel {
 impl ConstitutiveModel for NeoHookeanHyperElasticModel {
     fn new_particle(
         self,
-        mut commands: &mut Commands,
+        commands: &mut Commands,
         texture: Handle<Image>,
         at: Vec2,
         mass: f32,

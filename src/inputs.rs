@@ -4,9 +4,8 @@ use bevy::prelude::{
     With,
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
-use std::thread::spawn;
 
-use crate::{grid, spawn_particles, ParticleSpawnerInfo, ParticleSpawnerTag, SpawnerPattern};
+use crate::{grid, spawn_particles, ParticleSpawnerInfo, SpawnerPattern};
 
 use super::components::*;
 use super::defaults::*;
@@ -16,7 +15,6 @@ use super::world::*;
 pub(super) struct ClickAndDragState {
     dragging: bool,
     source_pos: Vec2,
-    current_pos: Vec2,
 }
 
 pub(super) fn handle_inputs(
