@@ -70,9 +70,8 @@ pub(super) fn create_initial_spawners(
     ));
 
     // spawn tower on first turn.
-    // young's modulus and shear modulus of wood/plywood
-    //9Gpa young's modulus
-    //0.6Gpa shear modulus
+    // searching says the properties of wood/plywood are 9Gpa young's modulus 0.6Gpa shear modulus
+    // but has been increased to 18 Gpa and 6 Gpa to make it more rigid
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
@@ -88,8 +87,8 @@ pub(super) fn create_initial_spawners(
         },
         NeoHookeanHyperElasticModel {
             deformation_gradient: Default::default(),
-            elastic_lambda: 9. * 1000.,
-            elastic_mu: 0.6 * 1000.,
+            elastic_lambda: 18. * 1000.,
+            elastic_mu: 6. * 1000.,
         },
         asset_server.load::<Image, &str>("wood_particle.png"),
         ParticleSpawnerTag,

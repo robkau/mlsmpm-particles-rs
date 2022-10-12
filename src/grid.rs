@@ -39,6 +39,7 @@ impl Grid {
         }
     }
 
+    // todo the bottom left corner is eating particles? (black hole?)
     pub(super) fn update(&mut self, dt: f32, gravity: f32) {
         for (i, cell) in self.cells.iter_mut().enumerate() {
             if cell.mass > 0.0 {
