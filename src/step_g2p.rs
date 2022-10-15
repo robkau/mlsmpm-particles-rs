@@ -56,30 +56,29 @@ pub(super) fn grid_to_particles(
             // advect particles
             position.0 += velocity.0 * world.dt;
 
-            // safety clamp to ensure particles don't exit simulation domain
-            position.0.x = f32::max(position.0.x, 1.0);
-            position.0.x = f32::min(position.0.x, (grid.width - 2) as f32);
+            //// safety clamp to ensure particles don't exit simulation domain
+            position.0.x = position.0.x.clamp(1.0, (grid.width - 2) as f32);
+            position.0.y = position.0.y.clamp(1.0, (grid.width - 2) as f32);
 
-            position.0.y = f32::max(position.0.y, 1.0);
-            position.0.y = f32::min(position.0.y, (grid.width - 2) as f32);
-
-            // todo this is strange
             // predictive boundary velocity cap
-            //let position_next = position.0 + velocity.0;
-            //let wall_min: f32 = 3.0;
-            //let wall_max: f32 = (world.grid_width - 1) as f32 - wall_min;
-            //if position_next.x < wall_min {
-            //    velocity.0.x += wall_min - position_next.x;
-            //}
-            //if position_next.x > wall_max {
-            //    velocity.0.x += wall_max - position_next.x;
-            //}
-            //if position_next.y < wall_min {
-            //    velocity.0.y += wall_min - position_next.y;
-            //}
-            //if position_next.y > wall_max {
-            //    velocity.0.y += wall_max - position_next.y;
-            //}
+            let wall_min: f32 = 3.0;
+            let wall_max: f32 = (grid.width - 1) as f32 - wall_min;
+
+            // apply boundary conditions about 0.1 seconds before reaching edge
+            let dt_multiplier = 0.1 / world.dt;
+            let position_next = position.0 + velocity.0 * world.dt * dt_multiplier;
+            if position_next.x < wall_min {
+                velocity.0.x += wall_min - position_next.x;
+            }
+            if position_next.x > wall_max {
+                velocity.0.x += wall_max - position_next.x;
+            }
+            if position_next.y < wall_min {
+                velocity.0.y += wall_min - position_next.y;
+            }
+            if position_next.y > wall_max {
+                velocity.0.y += wall_max - position_next.y;
+            }
         },
     );
 }

@@ -29,6 +29,7 @@ pub(super) fn handle_inputs(
     mut world: ResMut<WorldState>,
     mut spawner_drag: Local<ClickAndDragState>,
     mut particles: Query<(Entity, &Position, &mut Velocity, &Mass), With<ParticleTag>>,
+    // todo also reset all known spawners to the current set spawn patern.
     grid: Res<grid::Grid>,
 ) {
     let window = windows.get_primary().unwrap();
