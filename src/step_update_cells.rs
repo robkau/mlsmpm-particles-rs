@@ -24,6 +24,16 @@ pub(super) fn update_cells(
     particles.par_for_each_mut(
         PAR_BATCH_SIZE,
         |(position, velocity, mass, affine_momentum, mut mmc)| {
+            // todo delete me.
+            let min = 3;
+            let max = grid.width - 4;
+            if position.0.x < min as f32 || position.0.x > max as f32 {
+                print!("oops");
+            }
+            if position.0.y < min as f32 || position.0.y > max as f32 {
+                print!("oops");
+            }
+
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
             let cell_diff = Vec2::new(
@@ -43,6 +53,17 @@ pub(super) fn update_cells(
                         cell_pos_y as f32 - position.0.y + 0.5,
                     );
                     let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+
+                    // todo delete me
+                    if cell_pos_x < min || cell_pos_x > max as i32 {
+                        print!("oops");
+                    }
+                    if cell_pos_y < min || cell_pos_y > max as i32 {
+                        print!("oops");
+                    }
+                    if cell_at_index >= grid.width * grid.width {
+                        print!("oops");
+                    }
 
                     let q = affine_momentum.0 * cell_dist;
                     let mass_contrib = weight * mass.0;

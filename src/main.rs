@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
+extern crate core;
+
 use bevy::diagnostic::{
     EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
 };
@@ -26,6 +28,8 @@ mod step_update_cells;
 mod step_update_deformations;
 mod step_update_grid;
 mod world;
+
+const POST_RESET: &str = "POST_RESET";
 
 fn main() {
     App::new()
@@ -62,49 +66,62 @@ fn main() {
                 .label("tick_spawners")
                 .before("reset_grid"),
         )
-        .add_system(grid::reset_grid.label("reset_grid").before("update_cells"))
-        .add_system(
+        .add_system(grid::reset_grid.label("reset_grid"))
+        // NEW stage so particles removed during the reset are gone.
+        .add_stage_after(CoreStage::Update, POST_RESET, SystemStage::parallel())
+        .add_system_to_stage(
+            POST_RESET,
             step_update_cells::update_cells
                 .label("update_cells")
                 .before("apply_update_cell_computations"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_update_cells::apply_update_cell_computations
                 .label("apply_update_cell_computations")
                 .before("p2g_f")
                 .before("p2g_s"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_p2g::particles_to_grid_fluids
                 .label("p2g_f")
                 .before("update_grid"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_p2g::particles_to_grid_solids
                 .label("p2g_s")
                 .before("update_grid"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_update_grid::update_grid
                 .label("update_grid")
                 .before("g2p"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_g2p::grid_to_particles
                 .label("g2p")
                 .before("update_deformation_gradients"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             step_update_deformations::update_deformation_gradients
                 .label("update_deformation_gradients")
                 .before("delete_old_entities"),
         )
-        .add_system(
+        .add_system_to_stage(
+            POST_RESET,
             expire_old::delete_old_entities
                 .label("delete_old_entities")
                 .before("update_sprites"),
         )
-        .add_system(particle_sprites::update_sprites.label("update_sprites"))
+        .add_system_to_stage(
+            POST_RESET,
+            particle_sprites::update_sprites.label("update_sprites"),
+        )
         .run();
 }
 

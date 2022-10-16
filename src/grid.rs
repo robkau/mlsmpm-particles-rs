@@ -1,5 +1,7 @@
+use crate::components::{Mass, ParticleTag, Position, Velocity};
 use bevy::math::{Mat2, Vec2};
-use bevy::prelude::ResMut;
+use bevy::prelude::{Commands, Entity, Query, ResMut, With};
+use core::panicking::panic;
 
 #[derive(Debug, Clone, Copy)]
 pub(super) struct Cell {
@@ -29,6 +31,7 @@ impl Grid {
     }
 
     pub(super) fn index_at(&self, x: usize, y: usize) -> usize {
+        // todo when right clicking with mouse not moving: thread 'main' panicked at 'attempt to multiply with overflow', src\grid.rs:33:9
         x * self.width + y
     }
 
@@ -78,7 +81,24 @@ impl Grid {
     }
 }
 
-pub(super) fn reset_grid(mut grid: ResMut<Grid>) {
+pub(super) fn reset_grid(
+    mut commands: Commands,
+    mut grid: ResMut<Grid>,
+    particles: Query<(Entity, &Position), With<ParticleTag>>,
+) {
+    // despawn out-of-bounds particles.
+    // effects not visible until next stage or frame.
+    let min = 3;
+    let max = grid.width - 4;
+    particles.for_each(|(id, x)| {
+        if x.0.x <= min as f32 || x.0.x >= max as f32 {
+            commands.entity(id).despawn();
+        }
+        if x.0.y <= min as f32 || x.0.y >= max as f32 {
+            commands.entity(id).despawn();
+        }
+    });
+
     grid.reset();
 }
 
