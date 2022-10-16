@@ -82,6 +82,7 @@ pub(super) fn handle_inputs(
                 &mut commands,
                 asset_server.load("steel_particle.png"),
                 &world,
+                &grid,
             );
         }
 
@@ -107,6 +108,7 @@ pub(super) fn handle_inputs(
                 &mut commands,
                 asset_server.load("liquid_particle.png"),
                 &world,
+                &grid,
             );
         }
 

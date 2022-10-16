@@ -1,3 +1,4 @@
+use crate::grid;
 use bevy::prelude::*;
 use rand::Rng;
 
@@ -217,6 +218,7 @@ pub(super) fn create_initial_spawners(
 pub(super) fn tick_spawners(
     mut commands: Commands,
     world: Res<WorldState>,
+    grid: Res<Grid>,
     particles: Query<(), With<ParticleTag>>,
     spawners_solids: Query<
         (
@@ -243,6 +245,7 @@ pub(super) fn tick_spawners(
                 &mut commands,
                 texture.clone(),
                 &world,
+                &grid,
             );
         }
     });
@@ -257,9 +260,42 @@ pub(super) fn tick_spawners(
                 &mut commands,
                 texture.clone(),
                 &world,
+                &grid,
             );
         }
     });
+}
+
+fn spawn_particle(
+    commands: &mut Commands,
+    grid_width: usize,
+    cm: impl ConstitutiveModel + Copy,
+    spawner_info: &ParticleSpawnerInfo,
+    spawn_offset: Vec2,
+    vel: Option<Vec2>,
+    texture: Handle<Image>,
+    created_at: usize,
+) {
+    let particle_position = spawner_info.particle_origin + spawn_offset;
+
+    let min = 3;
+    let max = grid_width - 4;
+    if particle_position.x <= min as f32 || particle_position.x >= max as f32 {
+        return;
+    }
+    if particle_position.y <= min as f32 || particle_position.y >= max as f32 {
+        return;
+    }
+
+    cm.new_particle(
+        commands,
+        texture.clone(),
+        particle_position,
+        spawner_info.particle_mass,
+        created_at,
+        vel,
+        Some(spawner_info.particle_duration),
+    );
 }
 
 pub(super) fn spawn_particles(
@@ -268,7 +304,10 @@ pub(super) fn spawn_particles(
     commands: &mut Commands,
     texture: Handle<Image>,
     world: &WorldState,
+    grid: &Res<Grid>,
 ) {
+    // todo prevent out-of-bounds spawning here.
+
     let mut rng = rand::thread_rng();
     let base_vel = spawner_info.particle_velocity;
     let random_a_contrib = Vec2::new(
@@ -283,53 +322,57 @@ pub(super) fn spawn_particles(
 
     match spawner_info.pattern {
         SpawnerPattern::SingleParticle => {
-            cm.new_particle(
+            spawn_particle(
                 commands,
-                texture,
-                spawner_info.particle_origin,
-                spawner_info.particle_mass,
-                world.current_tick,
+                grid.width,
+                cm,
+                spawner_info,
+                Vec2::ZERO,
                 Some(spawn_vel),
-                Some(spawner_info.particle_duration),
+                texture.clone(),
+                world.current_tick,
             );
         }
         SpawnerPattern::LineHorizontal => {
             for x in 0..100 {
-                cm.new_particle(
+                spawn_particle(
                     commands,
-                    texture.clone(),
-                    spawner_info.particle_origin + Vec2::new(x as f32, 0.),
-                    spawner_info.particle_mass,
-                    world.current_tick,
+                    grid.width,
+                    cm,
+                    spawner_info,
+                    Vec2::new(x as f32, 0.),
                     Some(spawn_vel),
-                    Some(spawner_info.particle_duration),
+                    texture.clone(),
+                    world.current_tick,
                 );
             }
         }
         SpawnerPattern::LineVertical => {
             for y in 0..15 {
-                cm.new_particle(
+                spawn_particle(
                     commands,
-                    texture.clone(),
-                    spawner_info.particle_origin + Vec2::new(0., y as f32),
-                    spawner_info.particle_mass,
-                    world.current_tick,
+                    grid.width,
+                    cm,
+                    spawner_info,
+                    Vec2::new(0., y as f32),
                     Some(spawn_vel),
-                    Some(spawner_info.particle_duration),
+                    texture.clone(),
+                    world.current_tick,
                 );
             }
         }
         SpawnerPattern::Cube => {
             for x in 0..15 {
                 for y in 0..15 {
-                    cm.new_particle(
+                    spawn_particle(
                         commands,
-                        texture.clone(),
-                        spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
-                        spawner_info.particle_mass,
-                        world.current_tick,
+                        grid.width,
+                        cm,
+                        spawner_info,
+                        Vec2::new(x as f32, y as f32),
                         Some(spawn_vel),
-                        Some(spawner_info.particle_duration),
+                        texture.clone(),
+                        world.current_tick,
                     );
                 }
             }
@@ -337,14 +380,15 @@ pub(super) fn spawn_particles(
         SpawnerPattern::Tower => {
             for x in 0..80 {
                 for y in 0..90 {
-                    cm.new_particle(
+                    spawn_particle(
                         commands,
-                        texture.clone(),
-                        spawner_info.particle_origin + Vec2::new(x as f32, y as f32),
-                        spawner_info.particle_mass,
-                        world.current_tick,
+                        grid.width,
+                        cm,
+                        spawner_info,
+                        Vec2::new(x as f32, y as f32),
                         Some(spawn_vel),
-                        Some(spawner_info.particle_duration),
+                        texture.clone(),
+                        world.current_tick,
                     );
                 }
             }
@@ -360,14 +404,15 @@ pub(super) fn spawn_particles(
                     };
                     ya -= x as f32 / 2.;
 
-                    cm.new_particle(
+                    spawn_particle(
                         commands,
-                        texture.clone(),
-                        spawner_info.particle_origin + Vec2::new(x as f32, ya as f32),
-                        spawner_info.particle_mass,
-                        world.current_tick,
+                        grid.width,
+                        cm,
+                        spawner_info,
+                        Vec2::new(x as f32, ya as f32),
                         Some(spawn_vel),
-                        Some(spawner_info.particle_duration),
+                        texture.clone(),
+                        world.current_tick,
                     );
                 }
             }
@@ -383,15 +428,15 @@ pub(super) fn spawn_particles(
                     };
                     ya -= x as f32 / 2.;
 
-                    cm.new_particle(
+                    spawn_particle(
                         commands,
-                        texture.clone(),
-                        spawner_info.particle_origin
-                            + Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
-                        spawner_info.particle_mass,
-                        world.current_tick,
+                        grid.width,
+                        cm,
+                        spawner_info,
+                        Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
                         Some(spawn_vel),
-                        Some(spawner_info.particle_duration),
+                        texture.clone(),
+                        world.current_tick,
                     );
                 }
             }
