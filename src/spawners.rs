@@ -1,4 +1,3 @@
-use crate::grid;
 use bevy::prelude::*;
 use rand::Rng;
 
@@ -369,7 +368,7 @@ pub(super) fn spawn_particles(
                         grid.width,
                         cm,
                         spawner_info,
-                        Vec2::new(x as f32, y as f32),
+                        Vec2::new(x as f32 + 0.001, y as f32 + 0.001),
                         Some(spawn_vel),
                         texture.clone(),
                         world.current_tick,
