@@ -393,7 +393,10 @@ pub(super) fn spawn_particles(
         }
         SpawnerPattern::Triangle => {
             let x_axis: Vec2 = Vec2::new(1., 0.);
-            let angle: f32 = x_axis.angle_between(spawn_vel);
+            let angle = match spawn_vel.length() {
+                0. => 0.,
+                _ => x_axis.angle_between(spawn_vel),
+            };
 
             for x in 0..30 {
                 for y in 0..x {
@@ -407,7 +410,10 @@ pub(super) fn spawn_particles(
 
                     // rotate by angle about triangle tip (15, 0)
                     let pivot: Vec2 = Vec2::new(15., 0.);
-                    let pos: Vec2 = Vec2::new((pivot.x - x as f32) / 4., pivot.y + ya as f32 / 4.);
+                    let pos: Vec2 = Vec2::new(
+                        (0.001 + pivot.x - x as f32) / 4.,
+                        (0.001 + pivot.y + ya as f32) / 4.,
+                    );
 
                     // 1. translate point back to origin
                     let pos_rel_origin: Vec2 = Vec2::new(pos.x - pivot.x, pos.y - pivot.y);
