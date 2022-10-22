@@ -66,6 +66,10 @@ pub(super) fn apply_update_cell_computations(
 ) {
     particles.for_each(|mmc| {
         for change in mmc.0 .0.iter() {
+            if change.0 >= grid.width * grid.width {
+                continue;
+            }
+
             grid.cells[change.0].mass += change.1;
             grid.cells[change.0].velocity += change.2;
         }
