@@ -43,8 +43,6 @@ pub(super) fn particles_to_grid_solids(
                 let cell_pos_x = (cell_x as i32 + gx as i32) - 1;
                 let cell_pos_y = (cell_y as i32 + gy as i32) - 1;
                 let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
-                // todo a panic seen here.
-                // thread 'main' panicked at 'index out of bounds: the len is 65536 but the index is 18446744073709551359', src\step_p2g.rs:46:28
                 density += grid.cells[cell_at_index].mass * weight;
             }
         }

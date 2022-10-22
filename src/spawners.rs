@@ -22,8 +22,7 @@ pub(super) enum SpawnerPattern {
     LineVertical,
     Cube,
     Tower,
-    TriangleLeft,
-    TriangleRight,
+    Triangle,
 }
 
 #[derive(Clone, Component)]
@@ -54,7 +53,7 @@ pub(super) fn create_initial_spawners(
         // todo calculate correct particle mass from material density and particle density
         ParticleSpawnerInfo {
             created_at: 0,
-            pattern: SpawnerPattern::TriangleRight,
+            pattern: SpawnerPattern::Triangle,
             spawn_frequency: 800,
             max_particles: 200000,
             particle_duration: 40000,
@@ -392,31 +391,13 @@ pub(super) fn spawn_particles(
                 }
             }
         }
-        SpawnerPattern::TriangleLeft => {
-            for x in 0..15 {
-                for y in 0..x {
-                    // offset y by 0.5 every other time
-                    let mut ya: f32 = if x % 2 == 0 {
-                        y as f32 - 0.25
-                    } else {
-                        y as f32 + 0.25
-                    };
-                    ya -= x as f32 / 2.;
+        SpawnerPattern::Triangle => {
+            let x_axis: Vec2 = Vec2::new(1., 0.);
+            let angle = match spawn_vel.length() {
+                0. => 0.,
+                _ => x_axis.angle_between(spawn_vel),
+            };
 
-                    spawn_particle(
-                        commands,
-                        grid.width,
-                        cm,
-                        spawner_info,
-                        Vec2::new(x as f32, ya as f32),
-                        Some(spawn_vel),
-                        texture.clone(),
-                        world.current_tick,
-                    );
-                }
-            }
-        }
-        SpawnerPattern::TriangleRight => {
             for x in 0..30 {
                 for y in 0..x {
                     // offset y by 0.5 every other time
@@ -427,12 +408,31 @@ pub(super) fn spawn_particles(
                     };
                     ya -= x as f32 / 2.;
 
+                    // rotate by angle about triangle tip (15, 0)
+                    let pivot: Vec2 = Vec2::new(15., 0.);
+                    let pos: Vec2 = Vec2::new(
+                        (0.001 + pivot.x - x as f32) / 4.,
+                        (0.001 + pivot.y + ya as f32) / 4.,
+                    );
+
+                    // 1. translate point back to origin
+                    let pos_rel_origin: Vec2 = Vec2::new(pos.x - pivot.x, pos.y - pivot.y);
+
+                    // 2. rotate point
+                    let pos_rel_origin_rotated: Vec2 = Vec2::new(
+                        pos_rel_origin.x * angle.cos() - pos_rel_origin.y * angle.sin(),
+                        pos_rel_origin.x * angle.sin() + pos_rel_origin.y * angle.cos(),
+                    );
+
+                    // 3. translate point back:
+                    let pos_rotated: Vec2 = pos_rel_origin_rotated + pivot;
+
                     spawn_particle(
                         commands,
                         grid.width,
                         cm,
                         spawner_info,
-                        Vec2::new((15 - x) as f32 / 4., ya as f32 / 4.),
+                        pos_rotated,
                         Some(spawn_vel),
                         texture.clone(),
                         world.current_tick,
