@@ -65,7 +65,7 @@ pub(super) fn handle_inputs(
             // and spawn some particles with velocity based on drag distance
             let si = &ParticleSpawnerInfo {
                 created_at: world.current_tick,
-                pattern: SpawnerPattern::Triangle,
+                pattern: SpawnerPattern::Triangle { l: 30 },
                 spawn_frequency: 999999999, // todo special value to spawn once only.
                 max_particles: 500000,
                 particle_duration: 20000,
@@ -90,7 +90,7 @@ pub(super) fn handle_inputs(
         if btn.just_pressed(MouseButton::Right) {
             let si = &ParticleSpawnerInfo {
                 created_at: world.current_tick,
-                pattern: SpawnerPattern::Cube,
+                pattern: SpawnerPattern::Rectangle { w: 30, h: 30 },
                 spawn_frequency: 999999999, // todo special value to spawn once only.
                 max_particles: 500000,
                 particle_duration: 20000,
