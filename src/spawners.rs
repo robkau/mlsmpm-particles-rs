@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use rand::Rng;
+use std::f32::consts::PI;
 
 use super::components::*;
 use super::grid::*;
@@ -18,13 +19,28 @@ pub(super) struct ParticleSpawnerTag;
 #[derive(Clone)]
 pub(super) enum SpawnerPattern {
     SingleParticle,
-    LineHorizontal { w: usize },
-    LineVertical { h: usize },
-    Rectangle { w: usize, h: usize },
-    Tower { w: usize, h: usize },
-    Triangle { l: usize },
-    // Spiral{rotationPerTick: f32, ticksPerSpawn: usize},
-    // FuncXY{f: func(x, y usize) bool, domain:Vec2x2}
+    LineHorizontal {
+        w: usize,
+    },
+    LineVertical {
+        h: usize,
+    },
+    Rectangle {
+        w: usize,
+        h: usize,
+    },
+    Tower {
+        w: usize,
+        h: usize,
+    },
+    Triangle {
+        l: usize,
+    },
+    FuncXY {
+        f: fn(x: f32, y: f32) -> bool,
+        domain: Mat2,
+        stride: Vec2,
+    }, // Spiral{rotationPerTick: f32, ticksPerSpawn: usize},
 }
 
 #[derive(Clone, Component)]
@@ -39,6 +55,10 @@ pub(super) struct ParticleSpawnerInfo {
     pub(super) particle_velocity_random_vec_a: Vec2,
     pub(super) particle_velocity_random_vec_b: Vec2,
     pub(super) particle_mass: f32,
+}
+
+fn sinxy(x: f32, y: f32) -> bool {
+    return x.sin() - y.sin() > 0.;
 }
 
 pub(super) fn create_initial_spawners(
@@ -87,6 +107,7 @@ pub(super) fn create_initial_spawners(
             particle_mass: WOOD_PARTICLE_MASS,
         },
         NeoHookeanHyperElasticModel {
+            // todo to wood properties
             deformation_gradient: Default::default(),
             elastic_lambda: 18. * 1000.,
             elastic_mu: 6. * 1000.,
@@ -97,6 +118,61 @@ pub(super) fn create_initial_spawners(
 
     // make it rain!
     let water_square_width = 50;
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10., 160.), Vec2::new(0., 80.)),
+                stride: Vec2::new(0.25, 0.25),
+            },
+            spawn_frequency: 2500,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                0.5 * grid.width as f32 / 4. + 12.,
+                3. * grid.width as f32 / 4. + 16.,
+            ),
+            particle_velocity: Vec2::new(-20., -55.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: WOOD_PARTICLE_MASS,
+        },
+        NeoHookeanHyperElasticModel {
+            // todo to wood properties
+            deformation_gradient: Default::default(),
+            elastic_lambda: 18. * 1000.,
+            elastic_mu: 6. * 1000.,
+        },
+        asset_server.load::<Image, &str>("wood_particle.png"),
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10., 160.), Vec2::new(0., 80.)),
+                stride: Vec2::new(0.25, 0.25),
+            },
+            spawn_frequency: 2500,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                0.5 * grid.width as f32 / 4. + 12. + PI,
+                3. * grid.width as f32 / 4. + 16. + PI,
+            ),
+            particle_velocity: Vec2::new(-20., -55.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: LIQUID_PARTICLE_MASS,
+        },
+        water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
+        ParticleSpawnerTag,
+    ));
+
+    /*
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
@@ -232,6 +308,7 @@ pub(super) fn create_initial_spawners(
         asset_server.load::<Image, &str>("liquid_particle.png"),
         ParticleSpawnerTag,
     ));
+    */
 }
 
 pub(super) fn tick_spawners(
@@ -458,10 +535,26 @@ pub(super) fn spawn_particles(
                     );
                 }
             }
-        } //SpawnerPattern::XYFunc => {
-          //
-          //}
-          //SpawnerPattern::Spiral => {
+        }
+        SpawnerPattern::FuncXY { f, domain, stride } => {
+            for x in domain.x_axis.x.round() as usize..domain.x_axis.y.round() as usize {
+                for y in domain.y_axis.x.round() as usize..domain.y_axis.y.round() as usize {
+                    if f(x as f32, y as f32) {
+                        // todo refactor
+                        spawn_particle(
+                            commands,
+                            grid.width,
+                            cm,
+                            spawner_info,
+                            Vec2::new(x as f32, y as f32),
+                            Some(spawn_vel),
+                            texture.clone(),
+                            world.current_tick,
+                        );
+                    }
+                }
+            }
+        } //SpawnerPattern::Spiral => {
           //
           //}
     }
