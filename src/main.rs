@@ -19,6 +19,7 @@ mod expire_old;
 mod grid;
 mod inputs;
 mod particle_sprites;
+mod shapes;
 mod spawners;
 mod step_g2p;
 mod step_p2g;
@@ -33,7 +34,7 @@ fn main() {
         .insert_resource(WindowDescriptor {
             title: "mlsmpm-particles-rs".to_string(),
             //width: DEFAULT_WINDOW_WIDTH,
-            //height: DEFAULT_WINDOW_HEIGHT, // todo mouse cursor still wrong in fullscreen!
+            //height: DEFAULT_WINDOW_HEIGHT, // todo mouse cursor still wrong in fullscreen on mac
             mode: BorderlessFullscreen,
             ..Default::default()
         })

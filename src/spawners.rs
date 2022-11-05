@@ -1,5 +1,7 @@
+use crate::shapes::*;
 use bevy::prelude::*;
 use rand::Rng;
+use std::arch::aarch64::vsliq_n_p8;
 use std::f32::consts::PI;
 
 use super::components::*;
@@ -14,7 +16,6 @@ const STEEL_PARTICLE_MASS: f32 = 1.5;
 #[derive(Component)]
 pub(super) struct ParticleSpawnerTag;
 
-// todo refactor.
 #[allow(dead_code)]
 #[derive(Clone)]
 pub(super) enum SpawnerPattern {
@@ -58,34 +59,55 @@ pub(super) struct ParticleSpawnerInfo {
     pub(super) particle_mass: f32,
 }
 
-fn sinxy(x: f32, y: f32) -> bool {
-    return x.sin() - y.sin() > 0.;
-}
-
-fn circle(x: f32, y: f32) -> bool {
-    return x.powi(2) + y.powi(2) > 1.;
-}
-
 pub(super) fn create_initial_spawners(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     grid: Res<Grid>,
 ) {
-    // shoot arrows to the right
-    // young's modulus and shear modulus of steel.
-    // 180 Gpa young's
-    // 78Gpa shear
+    // shoot arrows make of steel material
     commands.spawn_bundle((
-        // todo density option to spawners
-        // todo calculate correct particle mass from material density and particle density
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::Triangle { l: 30 },
-            spawn_frequency: 800,
+            spawn_frequency: 1300,
             max_particles: 200000,
             particle_duration: 40000,
-            particle_origin: Vec2::new(1.1 * grid.width as f32 / 4., 1. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(100.3, -1.3),
+            particle_origin: Vec2::new(1.5 * grid.width as f32 / 4., 2.3 * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(95.3, -125.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.0, -1.0),
+            particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
+            particle_mass: STEEL_PARTICLE_MASS,
+        },
+        steel_properties(),
+        asset_server.load::<Image, &str>("steel_particle.png"),
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Triangle { l: 30 },
+            spawn_frequency: 1200,
+            max_particles: 200000,
+            particle_duration: 40000,
+            particle_origin: Vec2::new(1.55 * grid.width as f32 / 4., 0.8 * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-95.3, -9.3),
+            particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
+            particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
+            particle_mass: STEEL_PARTICLE_MASS,
+        },
+        steel_properties(),
+        asset_server.load::<Image, &str>("steel_particle.png"),
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::Triangle { l: 30 },
+            spawn_frequency: 1100,
+            max_particles: 200000,
+            particle_duration: 40000,
+            particle_origin: Vec2::new(0.6 * grid.width as f32 / 4., 2.6 * grid.width as f32 / 4.),
+            particle_velocity: Vec2::new(-10.3, -95.3),
             particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
             particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
             particle_mass: STEEL_PARTICLE_MASS,
@@ -95,110 +117,49 @@ pub(super) fn create_initial_spawners(
         ParticleSpawnerTag,
     ));
 
-    // spawn tower on first turn.
-    // searching says the properties of wood/plywood are 9Gpa young's modulus 0.6Gpa shear modulus
-    // but has been increased to 18 Gpa and 6 Gpa to make it more rigid
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower { w: 50, h: 125 },
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: WOOD_PARTICLE_MASS,
-        },
-        NeoHookeanHyperElasticModel {
-            // todo to wood properties
-            deformation_gradient: Default::default(),
-            elastic_lambda: 18. * 1000.,
-            elastic_mu: 6. * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-
-    // make it rain!
+    // steel box filled with water on left
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::FuncXY {
-                f: circle,
-                domain: Mat2::from_cols(Vec2::new(-10., 10.), Vec2::new(-10., 10.)),
-                particles_wide: 100,
-                particles_tall: 100,
+                f: hollow_box_20,
+                domain: Mat2::from_cols(Vec2::new(-50., 50.), Vec2::new(-50., 50.)),
+                particles_wide: 90,
+                particles_tall: 90,
             },
-            spawn_frequency: 2500,
+            spawn_frequency: 25000,
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 12.,
-                3. * grid.width as f32 / 4. + 16.,
+                0.6 * grid.width as f32 / 4. + 12.,
+                0.25 * grid.width as f32 / 4. + 16.,
             ),
-            particle_velocity: Vec2::new(-20., -55.),
+            particle_velocity: Vec2::new(0., 0.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: WOOD_PARTICLE_MASS,
+            particle_mass: STEEL_PARTICLE_MASS,
         },
-        NeoHookeanHyperElasticModel {
-            // todo to wood properties
-            deformation_gradient: Default::default(),
-            elastic_lambda: 18. * 1000.,
-            elastic_mu: 6. * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-
-    /*
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::FuncXY {
-                f: sinxy,
-                domain: Mat2::from_cols(Vec2::new(10., 160.), Vec2::new(0., 80.)),
-                stride: Vec2::new(0.25, 0.25),
-            },
-            spawn_frequency: 2500,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 12.,
-                3. * grid.width as f32 / 4. + 16.,
-            ),
-            particle_velocity: Vec2::new(-20., -55.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: WOOD_PARTICLE_MASS,
-        },
-        NeoHookeanHyperElasticModel {
-            // todo to wood properties
-            deformation_gradient: Default::default(),
-            elastic_lambda: 18. * 1000.,
-            elastic_mu: 6. * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
+        steel_properties(),
+        asset_server.load::<Image, &str>("steel_particle.png"),
         ParticleSpawnerTag,
     ));
     commands.spawn_bundle((
         ParticleSpawnerInfo {
             created_at: 0,
             pattern: SpawnerPattern::FuncXY {
-                f: sinxy,
-                domain: Mat2::from_cols(Vec2::new(10., 160.), Vec2::new(0., 80.)),
-                stride: Vec2::new(0.25, 0.25),
+                f: circle_20,
+                domain: Mat2::from_cols(Vec2::new(-50., 50.), Vec2::new(-50., 50.)),
+                particles_wide: 130,
+                particles_tall: 130,
             },
-            spawn_frequency: 2500,
+            spawn_frequency: 25000,
             max_particles: 75000,
             particle_duration: 100000,
             particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 12. + PI,
-                3. * grid.width as f32 / 4. + 16. + PI,
+                0.6 * grid.width as f32 / 4. + 12.,
+                0.25 * grid.width as f32 / 4. + 16.,
             ),
-            particle_velocity: Vec2::new(-20., -55.),
+            particle_velocity: Vec2::new(0., 0.),
             particle_velocity_random_vec_a: Vec2::ZERO,
             particle_velocity_random_vec_b: Vec2::ZERO,
             particle_mass: LIQUID_PARTICLE_MASS,
@@ -208,8 +169,109 @@ pub(super) fn create_initial_spawners(
         ParticleSpawnerTag,
     ));
 
+    // wood box filled with water on right
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: hollow_box_20,
+                domain: Mat2::from_cols(Vec2::new(-50., 50.), Vec2::new(-50., 50.)),
+                particles_wide: 90,
+                particles_tall: 90,
+            },
+            spawn_frequency: 25000,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                3.1 * grid.width as f32 / 4. + 12.,
+                0.25 * grid.width as f32 / 4. + 16.,
+            ),
+            particle_velocity: Vec2::new(0., 0.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: WOOD_PARTICLE_MASS,
+        },
+        wood_properties(),
+        asset_server.load::<Image, &str>("wood_particle.png"),
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: circle_20,
+                domain: Mat2::from_cols(Vec2::new(-50., 50.), Vec2::new(-50., 50.)),
+                particles_wide: 130,
+                particles_tall: 130,
+            },
+            spawn_frequency: 25000,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                3.1 * grid.width as f32 / 4. + 12.,
+                0.25 * grid.width as f32 / 4. + 16.,
+            ),
+            particle_velocity: Vec2::new(0., 0.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: LIQUID_PARTICLE_MASS,
+        },
+        water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
+        ParticleSpawnerTag,
+    ));
 
-     */
+    // drop down a cool structure
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10., 160.), Vec2::new(0., 80.)),
+                particles_wide: 170,
+                particles_tall: 110,
+            },
+            spawn_frequency: 5000,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2. * grid.width as f32 / 4. + 12.,
+                2.8 * grid.width as f32 / 4. + 64.,
+            ),
+            particle_velocity: Vec2::new(-0., -20.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: WOOD_PARTICLE_MASS,
+        },
+        wood_properties(),
+        asset_server.load::<Image, &str>("wood_particle.png"),
+        ParticleSpawnerTag,
+    ));
+    commands.spawn_bundle((
+        ParticleSpawnerInfo {
+            created_at: 0,
+            pattern: SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10. + PI, 160.), Vec2::new(0., 80.)),
+                particles_wide: 170,
+                particles_tall: 110,
+            },
+            spawn_frequency: 5000,
+            max_particles: 75000,
+            particle_duration: 100000,
+            particle_origin: Vec2::new(
+                2. * grid.width as f32 / 4. + 12. - PI,
+                2.8 * grid.width as f32 / 4. + 64. - PI,
+            ),
+            particle_velocity: Vec2::new(0., -20.),
+            particle_velocity_random_vec_a: Vec2::ZERO,
+            particle_velocity_random_vec_b: Vec2::ZERO,
+            particle_mass: LIQUID_PARTICLE_MASS,
+        },
+        water_properties(),
+        asset_server.load::<Image, &str>("liquid_particle.png"),
+        ParticleSpawnerTag,
+    ));
     /*
     commands.spawn_bundle((
         ParticleSpawnerInfo {
@@ -588,8 +650,8 @@ pub(super) fn spawn_particles(
 
             for x in 0..particles_wide {
                 for y in 0..particles_tall {
-                    let xp = spawner_info.particle_origin.x + x as f32 * units_per_particle.x;
-                    let yp = spawner_info.particle_origin.y + y as f32 * units_per_particle.y;
+                    let xp = x as f32 * units_per_particle.x - domain.x_axis.length() / 2.;
+                    let yp = y as f32 * units_per_particle.y - domain.y_axis.length() / 2.;
 
                     if f(xp as f32, yp as f32) {
                         spawn_particle(

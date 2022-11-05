@@ -5,8 +5,6 @@ use bevy::prelude::*;
 #[derive(Component)]
 pub(super) struct ParticleTag;
 
-// todo move rendering to GPU shader. over 70% of traced CPU time is inside sprite stuff.
-
 // XY position
 #[derive(Component, Debug)]
 pub(super) struct Position(pub(super) Vec2);
@@ -108,6 +106,14 @@ pub(super) fn steel_properties() -> NeoHookeanHyperElasticModel {
         deformation_gradient: Default::default(),
         elastic_lambda: 180. * 1000.,
         elastic_mu: 78. * 1000.,
+    }
+}
+
+pub(super) fn wood_properties() -> NeoHookeanHyperElasticModel {
+    NeoHookeanHyperElasticModel {
+        deformation_gradient: Default::default(),
+        elastic_lambda: 18. * 1000.,
+        elastic_mu: 6. * 1000.,
     }
 }
 

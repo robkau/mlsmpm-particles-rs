@@ -42,9 +42,7 @@ pub(super) fn grid_to_particles(
                         cell_pos_y as f32 - position.0.y + 0.5,
                     );
 
-                    let cell_at_index =
-                        // todo why was this fine when using grid directly?
-                        grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
+                    let cell_at_index = grid.index_at(cell_pos_x as usize, cell_pos_y as usize);
                     let weighted_velocity = grid.cells[cell_at_index].velocity * weight;
                     b += weighted_velocity_and_cell_dist_to_term(weighted_velocity, cell_dist);
                     velocity.0 += weighted_velocity;

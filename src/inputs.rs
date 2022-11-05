@@ -29,7 +29,6 @@ pub(super) fn handle_inputs(
     mut world: ResMut<WorldState>,
     mut spawner_drag: Local<ClickAndDragState>,
     mut particles: Query<(Entity, &Position, &mut Velocity, &Mass), With<ParticleTag>>,
-    // todo also reset all known spawners to the current set spawn patern.
     grid: Res<grid::Grid>,
 ) {
     let window = windows.get_primary().unwrap();
@@ -100,8 +99,6 @@ pub(super) fn handle_inputs(
                 particle_velocity_random_vec_b: Default::default(),
                 particle_mass: 0.75,
             };
-
-            // todo value to set size/width of spawned objects
             spawn_particles(
                 si,
                 water_properties(),
