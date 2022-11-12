@@ -1,3 +1,9 @@
+use crate::shapes::sinxy;
+use crate::world::WorldState;
+use crate::{
+    ParticleSpawnerInfo, ParticleSpawnerInfoBuilder, ParticleSpawnerTag, SpawnerPattern,
+    DEFAULT_DT, DEFAULT_GRAVITY,
+};
 use bevy::math::{Mat2, Vec2};
 use bevy::prelude::*;
 
@@ -152,4 +158,118 @@ pub trait ConstitutiveModel {
         vel: Option<Vec2>,
         max_age: Option<usize>,
     );
+}
+
+#[derive(Clone, Component)]
+pub(super) struct SceneManager {
+    scenes: Vec<Scene>,
+    current: usize,
+}
+
+impl SceneManager {
+    pub(super) fn default() -> SceneManager {
+        SceneManager {
+            scenes: vec![Scene::default()],
+            current: 0,
+        }
+    }
+
+    pub(super) fn get_current_scene(self) -> Scene {
+        self.scenes.get(self.current).unwrap().clone()
+    }
+    pub(super) fn get_scene(self, i: usize) -> Scene {
+        self.scenes.get(i).unwrap().clone()
+    }
+
+    pub(super) fn scenes(self) -> Vec<Scene> {
+        self.scenes
+    }
+
+    pub(super) fn add_scene(&mut self, s: Scene) {
+        self.scenes.push(s);
+    }
+
+    pub(super) fn get_current_scene_index(self) -> usize {
+        self.current
+    }
+
+    pub(super) fn set_current_scene_index(&mut self, i: usize) {
+        self.current = i;
+    }
+
+    pub(super) fn len(self) -> usize {
+        self.scenes.len()
+    }
+}
+
+#[derive(Clone, Component, Debug, PartialEq)]
+pub(super) struct Scene {
+    name: String,
+    spawners: Vec<ParticleSpawnerInfo>,
+    gravity: f32,
+    dt: f32,
+}
+
+impl Scene {
+    pub(super) fn default() -> Scene {
+        Scene {
+            name: "default scene".parse().unwrap(),
+            spawners: vec![ParticleSpawnerInfoBuilder::default()
+                .created_at(0)
+                .pattern(SpawnerPattern::FuncXY {
+                    f: sinxy,
+                    domain: Mat2::from_cols(Vec2::new(0., 50.), Vec2::new(0., 50.)),
+                    particles_wide: 50,
+                    particles_tall: 50,
+                })
+                .spawn_frequency(1000) // todo special value to spawn once only)
+                .max_particles(500000)
+                .particle_duration(20000)
+                .particle_origin(Vec2::new(20., 20.))
+                .particle_velocity(Vec2::new(40., 100.))
+                .particle_velocity_random_vec_a(Default::default())
+                .particle_velocity_random_vec_b(Default::default())
+                .particle_mass(1.0)
+                .build()
+                .unwrap()],
+            gravity: DEFAULT_GRAVITY,
+            dt: DEFAULT_DT,
+        }
+    }
+
+    pub(super) fn new(name: String, gravity: f32, dt: f32) -> Scene {
+        Scene {
+            name,
+            spawners: vec![],
+            gravity,
+            dt,
+        }
+    }
+
+    pub(super) fn add_spawner(&mut self, ps: ParticleSpawnerInfo) {
+        self.spawners.push(ps);
+    }
+
+    pub(super) fn name(self) -> String {
+        self.name
+    }
+
+    pub(super) fn actualize(
+        self,
+        mut commands: Commands,
+        asset_server: Res<AssetServer>,
+        mut world: WorldState,
+    ) {
+        world.gravity = self.gravity;
+        world.dt = self.dt;
+
+        for spawner in self.spawners.into_iter() {
+            commands.spawn_bundle((
+                spawner,
+                steel_properties(), // todo the actual properties stored with each spawner.
+                asset_server.load::<Image, &str>("steel_particle.png"),
+                ParticleSpawnerTag,
+            ));
+        }
+    }
 }

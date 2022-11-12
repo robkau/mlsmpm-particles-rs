@@ -1,11 +1,13 @@
 use bevy::math::Vec2;
 use bevy::prelude::{
-    AssetServer, Commands, Entity, Input, KeyCode, Local, MouseButton, Query, Res, ResMut, Windows,
-    With,
+    AssetServer, Commands, Entity, Image, Input, KeyCode, Local, MouseButton, Query, Res, ResMut,
+    Windows, With,
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
-use crate::{grid, spawn_particles, ParticleSpawnerInfo, SpawnerPattern};
+use crate::{
+    grid, spawn_particles, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder, SpawnerPattern,
+};
 
 use super::components::*;
 use super::defaults::*;
@@ -27,9 +29,10 @@ pub(super) fn handle_inputs(
     mut egui_settings: ResMut<EguiSettings>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut world: ResMut<WorldState>,
+    mut scenes: ResMut<SceneManager>,
+    grid: Res<grid::Grid>,
     mut spawner_drag: Local<ClickAndDragState>,
     mut particles: Query<(Entity, &Position, &mut Velocity, &Mass), With<ParticleTag>>,
-    grid: Res<grid::Grid>,
 ) {
     let window = windows.get_primary().unwrap();
     if let Some(win_pos) = window.cursor_position() {
@@ -62,24 +65,25 @@ pub(super) fn handle_inputs(
             spawner_drag.dragging = false;
 
             // and spawn some particles with velocity based on drag distance
-            let si = &ParticleSpawnerInfo {
-                created_at: world.current_tick,
-                pattern: SpawnerPattern::Triangle { l: 30 },
-                spawn_frequency: 999999999, // todo special value to spawn once only.
-                max_particles: 500000,
-                particle_duration: 20000,
-                particle_origin: spawner_drag.source_pos,
-                particle_velocity: grid_pos - spawner_drag.source_pos,
-                particle_velocity_random_vec_a: Default::default(),
-                particle_velocity_random_vec_b: Default::default(),
-                particle_mass: 1.0,
-            };
+            let si = ParticleSpawnerInfoBuilder::default()
+                .created_at(world.current_tick)
+                .pattern(SpawnerPattern::Triangle { l: 30 })
+                .spawn_frequency(999999999) // todo special value to spawn once only)
+                .max_particles(500000)
+                .particle_duration(20000)
+                .particle_origin(spawner_drag.source_pos)
+                .particle_velocity(grid_pos - spawner_drag.source_pos)
+                .particle_velocity_random_vec_a(Default::default())
+                .particle_velocity_random_vec_b(Default::default())
+                .particle_mass(1.0)
+                .build()
+                .unwrap();
 
             spawn_particles(
-                si,
+                &si,
                 steel_properties(),
                 &mut commands,
-                asset_server.load("steel_particle.png"),
+                asset_server.load::<Image, &str>("steel_particle.png"),
                 &world,
                 &grid,
             );
@@ -87,18 +91,20 @@ pub(super) fn handle_inputs(
 
         // can right click to dump a bucket of water.
         if btn.just_pressed(MouseButton::Right) {
-            let si = &ParticleSpawnerInfo {
-                created_at: world.current_tick,
-                pattern: SpawnerPattern::Rectangle { w: 30, h: 30 },
-                spawn_frequency: 999999999, // todo special value to spawn once only.
-                max_particles: 500000,
-                particle_duration: 20000,
-                particle_origin: grid_pos,
-                particle_velocity: Vec2::new(0., -40.),
-                particle_velocity_random_vec_a: Default::default(),
-                particle_velocity_random_vec_b: Default::default(),
-                particle_mass: 0.75,
-            };
+            let si = &ParticleSpawnerInfoBuilder::default()
+                .created_at(world.current_tick)
+                .pattern(SpawnerPattern::Rectangle { w: 30, h: 30 })
+                .spawn_frequency(999999999) // todo special value to spawn once only
+                .max_particles(500000)
+                .particle_duration(20000)
+                .particle_origin(grid_pos)
+                .particle_velocity(Vec2::new(0., -40.))
+                .particle_velocity_random_vec_a(Default::default())
+                .particle_velocity_random_vec_b(Default::default())
+                .particle_mass(0.75)
+                .build()
+                .unwrap();
+
             spawn_particles(
                 si,
                 water_properties(),
@@ -122,6 +128,23 @@ pub(super) fn handle_inputs(
                 world.toggle_gravity();
                 return;
             };
+
+            let current_scene = scenes.clone().get_current_scene();
+            egui::ComboBox::from_label(format!(
+                "Currently selected enum: {}",
+                current_scene.name(),
+            )) // When created from a label the text will b shown on the side of the combobox
+            .selected_text(scenes.clone().get_current_scene().name()) // This is the currently selected option (in text form)
+            .show_ui(ui, |ui| {
+                for mut scene in scenes.clone().scenes().iter_mut() {
+                    // The first parameter is a mutable reference to allow the choice to be modified when the user selects
+                    // something else. The second parameter is the actual value of the option (to be compared with the currently)
+                    // selected one to allow egui to highlight the correct label. The third parameter is the string to show.
+                    let mut scene_clone = scene.clone();
+                    let mut scene_clone_name = scene_clone.clone().name();
+                    ui.selectable_value(&mut scene, &mut scene_clone, scene_clone_name);
+                }
+            });
 
             // slider for gravity
             ui.add(egui::Slider::new(&mut world.gravity, -10.0..=10.).text("gravity"));
