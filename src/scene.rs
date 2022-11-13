@@ -302,11 +302,11 @@ pub(super) fn waterfall_scene() -> Scene {
             .created_at(0)
             .pattern(SpawnerPattern::Rectangle { w: 25, h: 25 })
             .spawn_on_creation(true)
-            .spawn_frequency(400)
+            .spawn_frequency(300)
             .max_particles(75000)
             .particle_duration(100000)
-            .particle_origin(Vec2::new(55., 145.))
-            .particle_velocity(Vec2::new(10., -37.))
+            .particle_origin(Vec2::new(35., 185.))
+            .particle_velocity(Vec2::new(10., -47.))
             .particle_velocity_random_vec_a(Vec2::ZERO)
             .particle_velocity_random_vec_b(Vec2::ZERO)
             .particle_type(SpawnedParticleType::water())
@@ -325,10 +325,10 @@ pub(super) fn waterfall_scene() -> Scene {
                 particles_tall: 25,
             })
             .spawn_on_creation(true)
-            .spawn_frequency(550)
+            .spawn_frequency(425)
             .max_particles(75000)
             .particle_duration(100000)
-            .particle_origin(Vec2::new(5., 115.))
+            .particle_origin(Vec2::new(15., 115.))
             .particle_velocity(Vec2::new(40., 17.))
             .particle_velocity_random_vec_a(Vec2::ZERO)
             .particle_velocity_random_vec_b(Vec2::ZERO)
@@ -375,6 +375,98 @@ pub(super) fn waterfall_scene() -> Scene {
             .particle_velocity_random_vec_b(Vec2::new(0.0, 0.0))
             .particle_type(SpawnedParticleType::steel())
             .particle_texture("steel_particle.png".to_string())
+            .build()
+            .unwrap(),
+    );
+
+    s.add_spawner(
+        ParticleSpawnerInfoBuilder::default()
+            .created_at(0)
+            .pattern(SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(25., 40.), Vec2::new(0., 80.)),
+                particles_wide: 110,
+                particles_tall: 110,
+            })
+            .spawn_on_creation(true)
+            .spawn_frequency(0)
+            .max_particles(75000)
+            .particle_duration(100000)
+            .particle_origin(Vec2::new(15., 5.))
+            .particle_velocity(Vec2::ZERO)
+            .particle_velocity_random_vec_a(Vec2::ZERO)
+            .particle_velocity_random_vec_b(Vec2::ZERO)
+            .particle_type(SpawnedParticleType::steel())
+            .particle_texture("steel_particle.png".to_string())
+            .build()
+            .unwrap(),
+    );
+
+    s.add_spawner(
+        ParticleSpawnerInfoBuilder::default()
+            .created_at(0)
+            .pattern(SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(25., 40.), Vec2::new(0., 80.)),
+                particles_wide: 110,
+                particles_tall: 110,
+            })
+            .spawn_on_creation(true)
+            .spawn_frequency(0)
+            .max_particles(75000)
+            .particle_duration(100000)
+            .particle_origin(Vec2::new(15. + PI, 5. + PI))
+            .particle_velocity(Vec2::ZERO)
+            .particle_velocity_random_vec_a(Vec2::new(10., 10.))
+            .particle_velocity_random_vec_b(Vec2::new(20., 00.))
+            .particle_type(SpawnedParticleType::wood())
+            .particle_texture("wood_particle.png".to_string())
+            .build()
+            .unwrap(),
+    );
+
+    s.add_spawner(
+        ParticleSpawnerInfoBuilder::default()
+            .created_at(0)
+            .pattern(SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10., 40.), Vec2::new(0., 80.)),
+                particles_wide: 90,
+                particles_tall: 90,
+            })
+            .spawn_on_creation(true)
+            .spawn_frequency(0)
+            .max_particles(75000)
+            .particle_duration(100000)
+            .particle_origin(Vec2::new(155., 5.))
+            .particle_velocity(Vec2::ZERO)
+            .particle_velocity_random_vec_a(Vec2::ZERO)
+            .particle_velocity_random_vec_b(Vec2::ZERO)
+            .particle_type(SpawnedParticleType::steel())
+            .particle_texture("steel_particle.png".to_string())
+            .build()
+            .unwrap(),
+    );
+
+    s.add_spawner(
+        ParticleSpawnerInfoBuilder::default()
+            .created_at(0)
+            .pattern(SpawnerPattern::FuncXY {
+                f: sinxy,
+                domain: Mat2::from_cols(Vec2::new(10., 40.), Vec2::new(0., 80.)),
+                particles_wide: 90,
+                particles_tall: 90,
+            })
+            .spawn_on_creation(true)
+            .spawn_frequency(0)
+            .max_particles(75000)
+            .particle_duration(100000)
+            .particle_origin(Vec2::new(155. + PI, 5. + PI))
+            .particle_velocity(Vec2::ZERO)
+            .particle_velocity_random_vec_a(Vec2::new(-10., 10.))
+            .particle_velocity_random_vec_b(Vec2::new(-20., 00.))
+            .particle_type(SpawnedParticleType::wood())
+            .particle_texture("wood_particle.png".to_string())
             .build()
             .unwrap(),
     );
