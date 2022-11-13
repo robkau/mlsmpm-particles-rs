@@ -2,6 +2,7 @@
 
 #[macro_use]
 extern crate derive_builder;
+extern crate core;
 
 use bevy::diagnostic::{
     EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
@@ -10,12 +11,12 @@ use bevy::prelude::*;
 use bevy::window::WindowMode::BorderlessFullscreen;
 use bevy_egui::EguiPlugin;
 
-use crate::components::SceneManager;
+use crate::components::Scene;
 use camera::*;
 use spawners::*;
 
 use crate::defaults::*;
-use crate::scene::init_scenes;
+use crate::world::NeedToReset;
 
 mod camera;
 mod components;
@@ -46,18 +47,14 @@ fn main() {
         })
         .insert_resource(grid::Grid::new(DEFAULT_GRID_WIDTH))
         .insert_resource(world::WorldState::default())
-        .insert_resource(init_scenes())
+        .insert_resource(Scene::default())
+        .insert_resource(NeedToReset(false))
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(EguiPlugin)
         .add_plugin(EntityCountDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(setup_camera)
-        //.add_system(
-        //    set_zoom_from_window_size
-        //        .label("set_zoom_from_window_size")
-        //        .before("handle_inputs"),
-        //)
         .add_system(bevy::window::close_on_esc)
         .add_system(
             inputs::handle_inputs
@@ -117,7 +114,7 @@ fn main() {
                 .before("update_scene"),
         )
         // todo: egui widget graphs with total energy in system., # of particles, etc.
-        .add_system(scene::update_scene)
+        .add_system(scene::update_scene.label("update_scene"))
         .run();
 }
 

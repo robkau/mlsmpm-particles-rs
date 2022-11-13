@@ -5,8 +5,12 @@ use bevy::prelude::{
 };
 use bevy_egui::{egui, EguiContext, EguiSettings};
 
+use crate::components::Scene;
+use crate::scene::hollow_box_scene;
+use crate::SpawnedParticleType::{Steel, Water};
 use crate::{
-    grid, spawn_particles, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder, SpawnerPattern,
+    grid, scene, spawn_particles, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder,
+    ParticleSpawnerTag, SpawnedParticleType, SpawnerPattern,
 };
 
 use super::components::*;
@@ -29,7 +33,8 @@ pub(super) fn handle_inputs(
     mut egui_settings: ResMut<EguiSettings>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut world: ResMut<WorldState>,
-    mut scenes: ResMut<SceneManager>,
+    mut current_scene: ResMut<Scene>,
+    mut need_to_reset: ResMut<NeedToReset>,
     grid: Res<grid::Grid>,
     mut spawner_drag: Local<ClickAndDragState>,
     mut particles: Query<(Entity, &Position, &mut Velocity, &Mass), With<ParticleTag>>,
@@ -68,25 +73,23 @@ pub(super) fn handle_inputs(
             let si = ParticleSpawnerInfoBuilder::default()
                 .created_at(world.current_tick)
                 .pattern(SpawnerPattern::Triangle { l: 30 })
-                .spawn_frequency(999999999) // todo special value to spawn once only)
+                .spawn_on_creation(true)
+                .spawn_frequency(0)
                 .max_particles(500000)
                 .particle_duration(20000)
                 .particle_origin(spawner_drag.source_pos)
                 .particle_velocity(grid_pos - spawner_drag.source_pos)
                 .particle_velocity_random_vec_a(Default::default())
                 .particle_velocity_random_vec_b(Default::default())
-                .particle_mass(1.0)
+                .particle_type(SpawnedParticleType::steel())
+                .particle_texture("steel_particle.png".to_string())
                 .build()
                 .unwrap();
-
-            spawn_particles(
-                &si,
-                steel_properties(),
-                &mut commands,
-                asset_server.load::<Image, &str>("steel_particle.png"),
-                &world,
-                &grid,
-            );
+            commands.spawn_bundle((
+                si.clone(),
+                asset_server.load::<Image, &std::string::String>(&si.clone().particle_texture),
+                ParticleSpawnerTag,
+            ));
         }
 
         // can right click to dump a bucket of water.
@@ -94,34 +97,28 @@ pub(super) fn handle_inputs(
             let si = &ParticleSpawnerInfoBuilder::default()
                 .created_at(world.current_tick)
                 .pattern(SpawnerPattern::Rectangle { w: 30, h: 30 })
-                .spawn_frequency(999999999) // todo special value to spawn once only
+                .spawn_on_creation(true)
+                .spawn_frequency(0)
                 .max_particles(500000)
                 .particle_duration(20000)
                 .particle_origin(grid_pos)
                 .particle_velocity(Vec2::new(0., -40.))
                 .particle_velocity_random_vec_a(Default::default())
                 .particle_velocity_random_vec_b(Default::default())
-                .particle_mass(0.75)
+                .particle_type(SpawnedParticleType::water())
+                .particle_texture("liquid_particle.png".to_string())
                 .build()
                 .unwrap();
-
-            spawn_particles(
-                si,
-                water_properties(),
-                &mut commands,
-                asset_server.load("liquid_particle.png"),
-                &world,
-                &grid,
-            );
+            commands.spawn_bundle((
+                si.clone(),
+                asset_server.load::<Image, &std::string::String>(&si.clone().particle_texture),
+                ParticleSpawnerTag,
+            ));
         }
 
         egui::Window::new("Controls").show(egui_context.ctx_mut(), |ui| {
             if ui.button("(R)eset").clicked() || keys.just_pressed(KeyCode::R) {
-                particles.for_each(|(id, _, _, _)| {
-                    commands.entity(id).despawn();
-                });
-                world.dt = DEFAULT_DT;
-                world.gravity = DEFAULT_GRAVITY;
+                need_to_reset.0 = true;
                 return;
             };
             if ui.button("(G)ravity toggle").clicked() || keys.just_pressed(KeyCode::G) {
@@ -129,21 +126,23 @@ pub(super) fn handle_inputs(
                 return;
             };
 
-            let current_scene = scenes.clone().get_current_scene();
             egui::ComboBox::from_label(format!(
                 "Currently selected enum: {}",
-                current_scene.name(),
+                current_scene.clone().name(),
             )) // When created from a label the text will b shown on the side of the combobox
-            .selected_text(scenes.clone().get_current_scene().name()) // This is the currently selected option (in text form)
+            .selected_text(current_scene.clone().name()) // This is the currently selected option (in text form)
             .show_ui(ui, |ui| {
-                for mut scene in scenes.clone().scenes().iter_mut() {
-                    // The first parameter is a mutable reference to allow the choice to be modified when the user selects
-                    // something else. The second parameter is the actual value of the option (to be compared with the currently)
-                    // selected one to allow egui to highlight the correct label. The third parameter is the string to show.
-                    let mut scene_clone = scene.clone();
-                    let mut scene_clone_name = scene_clone.clone().name();
-                    ui.selectable_value(&mut scene, &mut scene_clone, scene_clone_name);
-                }
+                // The first parameter is a mutable reference to allow the choice to be modified when the user selects
+                // something else. The second parameter is the actual value of the option (to be compared with the currently)
+                // selected one to allow egui to highlight the correct label. The third parameter is the string to show.
+                ui.selectable_value(
+                    &mut *current_scene,
+                    Scene::default(),
+                    Scene::default().name(),
+                );
+                //let hbs = hollow_box_scene();
+                //let hbs_name = hbs.clone().name();
+                //ui.selectable_value(&mut *current_scene, hbs, hbs_name);
             });
 
             // slider for gravity
