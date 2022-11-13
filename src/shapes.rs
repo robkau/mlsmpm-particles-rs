@@ -1,3 +1,11 @@
+pub(super) fn sinx(x: f32, y: f32) -> bool {
+    return x.sin() > 0.;
+}
+
+pub(super) fn siny(x: f32, y: f32) -> bool {
+    return y.sin() > 0.;
+}
+
 pub(super) fn sinxy(x: f32, y: f32) -> bool {
     return x.sin() - y.sin() > 0.;
 }

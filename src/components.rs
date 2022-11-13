@@ -1,4 +1,4 @@
-use crate::scene::hollow_box_scene;
+use crate::scene::{hollow_box_scene, waterfall_scene};
 use crate::shapes::sinxy;
 use crate::world::WorldState;
 use crate::SpawnedParticleType::Steel;
@@ -97,7 +97,7 @@ pub(super) struct Scene {
 
 impl Scene {
     pub(super) fn default() -> Scene {
-        hollow_box_scene()
+        waterfall_scene()
     }
 
     pub(super) fn new(name: String, gravity: f32, dt: f32) -> Scene {

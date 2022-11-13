@@ -140,9 +140,9 @@ pub(super) fn handle_inputs(
                     Scene::default(),
                     Scene::default().name(),
                 );
-                //let hbs = hollow_box_scene();
-                //let hbs_name = hbs.clone().name();
-                //ui.selectable_value(&mut *current_scene, hbs, hbs_name);
+                let hbs = hollow_box_scene();
+                let hbs_name = hbs.clone().name();
+                ui.selectable_value(&mut *current_scene, hbs, hbs_name);
             });
 
             // slider for gravity
