@@ -105,7 +105,6 @@ pub(super) fn tick_spawners(
     mut commands: Commands,
     world: Res<WorldState>,
     grid: Res<Grid>,
-    asset_server: Res<AssetServer>,
     particles: Query<(), With<ParticleTag>>,
     spawners: Query<(&ParticleSpawnerInfo, &Handle<Image>), With<ParticleSpawnerTag>>,
 ) {
@@ -130,7 +129,7 @@ fn spawn_particle(
     spawn_offset: Vec2,
     vel: Option<Vec2>,
     created_at: usize,
-    max_age: Option<usize>, // todo???
+    max_age: Option<usize>,
     st: SpawnedParticleType,
     texture: &Handle<Image>,
 ) {
@@ -175,7 +174,7 @@ fn spawn_particle(
 }
 
 pub(super) fn spawn_particles(
-    spawner_info: &ParticleSpawnerInfo, // todo get bundle with handle
+    spawner_info: &ParticleSpawnerInfo,
     commands: &mut Commands,
     world: &WorldState,
     grid: &Res<Grid>,
@@ -327,7 +326,6 @@ pub(super) fn spawn_particles(
             particles_wide,
             particles_tall,
         } => {
-            // todo fixme with circle case
             let units_per_particle = Vec2::new(
                 domain.x_axis.length() / particles_wide as f32,
                 domain.y_axis.length() / particles_tall as f32,
