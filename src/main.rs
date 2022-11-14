@@ -1,5 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
+extern crate core;
+
 use bevy::diagnostic::{
     EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
 };
@@ -10,7 +12,9 @@ use bevy_egui::EguiPlugin;
 use camera::*;
 use spawners::*;
 
+use crate::components::Scene;
 use crate::defaults::*;
+use crate::world::NeedToReset;
 
 mod camera;
 mod components;
@@ -19,6 +23,7 @@ mod expire_old;
 mod grid;
 mod inputs;
 mod particle_sprites;
+mod scene;
 mod shapes;
 mod spawners;
 mod step_g2p;
@@ -40,18 +45,14 @@ fn main() {
         })
         .insert_resource(grid::Grid::new(DEFAULT_GRID_WIDTH))
         .insert_resource(world::WorldState::default())
+        .insert_resource(Scene::default())
+        .insert_resource(NeedToReset(false))
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
         .add_plugin(EguiPlugin)
         .add_plugin(EntityCountDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(setup_camera)
-        .add_startup_system(create_initial_spawners)
-        //.add_system(
-        //    set_zoom_from_window_size
-        //        .label("set_zoom_from_window_size")
-        //        .before("handle_inputs"),
-        //)
         .add_system(bevy::window::close_on_esc)
         .add_system(
             inputs::handle_inputs
@@ -105,7 +106,13 @@ fn main() {
                 .label("delete_old_entities")
                 .before("update_sprites"),
         )
-        .add_system(particle_sprites::update_sprites.label("update_sprites"))
+        .add_system(
+            particle_sprites::update_sprites
+                .label("update_sprites")
+                .before("update_scene"),
+        )
+        // todo: egui widget graphs with total energy in system., # of particles, etc.
+        .add_system(scene::update_scene.label("update_scene"))
         .run();
 }
 
