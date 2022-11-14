@@ -85,7 +85,7 @@ pub(super) fn handle_inputs(
                 .unwrap();
             commands.spawn_bundle((
                 si.clone(),
-                asset_server.load::<Image, &std::string::String>(&si.clone().particle_texture),
+                asset_server.load::<Image, &std::string::String>(&si.particle_texture),
                 ParticleSpawnerTag,
             ));
         }

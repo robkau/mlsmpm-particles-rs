@@ -80,22 +80,22 @@ pub(super) enum SpawnedParticleType {
 
 impl SpawnedParticleType {
     pub fn water() -> SpawnedParticleType {
-        return Water {
+        Water {
             cm: water_properties(),
             mass: LIQUID_PARTICLE_MASS,
-        };
+        }
     }
     pub fn wood() -> SpawnedParticleType {
-        return Wood {
+        Wood {
             cm: wood_properties(),
             mass: WOOD_PARTICLE_MASS,
-        };
+        }
     }
     pub fn steel() -> SpawnedParticleType {
-        return Steel {
+        Steel {
             cm: steel_properties(),
             mass: STEEL_PARTICLE_MASS,
-        };
+        }
     }
 }
 
@@ -158,7 +158,7 @@ fn spawn_particle(
                 transform: Transform::from_scale(Vec3::splat(0.005)),
                 ..Default::default()
             });
-            b = b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
         }
         SpawnedParticleType::Water { cm, mass } => {
             b = b.insert_bundle(SpriteBundle {
@@ -166,7 +166,7 @@ fn spawn_particle(
                 transform: Transform::from_scale(Vec3::splat(0.002)),
                 ..Default::default()
             });
-            b = b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
         }
     };
 }
@@ -271,7 +271,7 @@ pub(super) fn spawn_particles(
         SpawnerPattern::Triangle { l } => {
             let x_axis: Vec2 = Vec2::new(1., 0.);
             let angle = match spawn_vel.length() {
-                0. => 0.,
+                x if x < 0.0000001 && x > -0.0000001 => 0.,
                 _ => x_axis.angle_between(spawn_vel),
             };
 

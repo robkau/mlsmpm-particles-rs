@@ -472,5 +472,5 @@ pub(super) fn waterfall_scene() -> Scene {
             .unwrap(),
     );
 
-    return s;
+    s
 }
