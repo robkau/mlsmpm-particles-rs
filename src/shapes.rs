@@ -1,8 +1,8 @@
-pub(super) fn sinx(x: f32, y: f32) -> bool {
+pub(super) fn sinx(x: f32, _: f32) -> bool {
     return x.sin() > 0.;
 }
 
-pub(super) fn siny(x: f32, y: f32) -> bool {
+pub(super) fn siny(_: f32, y: f32) -> bool {
     return y.sin() > 0.;
 }
 

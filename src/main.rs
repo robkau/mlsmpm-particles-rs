@@ -1,7 +1,5 @@
 #![allow(clippy::too_many_arguments)]
 
-#[macro_use]
-extern crate derive_builder;
 extern crate core;
 
 use bevy::diagnostic::{
@@ -11,10 +9,10 @@ use bevy::prelude::*;
 use bevy::window::WindowMode::BorderlessFullscreen;
 use bevy_egui::EguiPlugin;
 
-use crate::components::Scene;
 use camera::*;
 use spawners::*;
 
+use crate::components::Scene;
 use crate::defaults::*;
 use crate::world::NeedToReset;
 

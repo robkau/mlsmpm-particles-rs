@@ -1,14 +1,9 @@
-use crate::scene::{hollow_box_scene, waterfall_scene};
-use crate::shapes::sinxy;
-use crate::world::WorldState;
-use crate::SpawnedParticleType::Steel;
-use crate::{
-    ParticleSpawnerInfo, ParticleSpawnerInfoBuilder, ParticleSpawnerTag, SpawnedParticleType,
-    SpawnerPattern, DEFAULT_DT, DEFAULT_GRAVITY,
-};
-use bevy::ecs::system::Spawn;
 use bevy::math::{Mat2, Vec2};
 use bevy::prelude::*;
+
+use crate::scene::waterfall_scene;
+use crate::world::WorldState;
+use crate::{ParticleSpawnerInfo, ParticleSpawnerTag};
 
 // Tags particle entities
 #[derive(Component)]

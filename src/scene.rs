@@ -2,18 +2,19 @@
 // the current scene can be changed
 // on first tick where scene changed, despawn all old entities. spawn each particlespawner out of scene.
 
-use crate::components::{steel_properties, ParticleTag, Scene};
-use crate::grid::Grid;
-use crate::shapes::{circle_20, hollow_box_20, sinx, sinxy, siny};
-use crate::world::{NeedToReset, WorldState};
-use crate::SpawnedParticleType::{Steel, Water};
+use std::f32::consts::PI;
+
+use bevy::prelude::Vec2;
+
+use crate::components::{ParticleTag, Scene};
 use crate::{
     AssetServer, Commands, Entity, Local, Mat2, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder,
     Query, Res, ResMut, SpawnedParticleType, SpawnerPattern, With, DEFAULT_DT, DEFAULT_GRAVITY,
-    LIQUID_PARTICLE_MASS, STEEL_PARTICLE_MASS,
 };
-use bevy::prelude::Vec2;
-use std::f32::consts::PI;
+
+use crate::shapes::{circle_20, hollow_box_20, sinxy};
+
+use crate::world::{NeedToReset, WorldState};
 
 pub(super) fn update_scene(
     mut commands: Commands,
@@ -31,10 +32,10 @@ pub(super) fn update_scene(
     // reset scene
     {
         // remove existing entities
-        particles.for_each(|(id)| {
+        particles.for_each(|id| {
             commands.entity(id).despawn();
         });
-        spawners.for_each(|(id)| {
+        spawners.for_each(|id| {
             commands.entity(id).despawn();
         });
         // add new entities

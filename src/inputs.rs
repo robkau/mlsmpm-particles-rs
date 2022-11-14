@@ -7,10 +7,8 @@ use bevy_egui::{egui, EguiContext, EguiSettings};
 
 use crate::components::Scene;
 use crate::scene::hollow_box_scene;
-use crate::SpawnedParticleType::{Steel, Water};
 use crate::{
-    grid, scene, spawn_particles, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder,
-    ParticleSpawnerTag, SpawnedParticleType, SpawnerPattern,
+    grid, ParticleSpawnerInfoBuilder, ParticleSpawnerTag, SpawnedParticleType, SpawnerPattern,
 };
 
 use super::components::*;
