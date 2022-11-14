@@ -1,6 +1,6 @@
 #[allow(dead_code)]
 pub(super) fn sinx(x: f32, _: f32) -> bool {
-    return x.sin() > 0.;
+    x.sin() > 0.
 }
 
 #[allow(dead_code)]

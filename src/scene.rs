@@ -246,7 +246,7 @@ pub(super) fn hollow_box_scene() -> Scene {
             .unwrap(),
     );
 
-    return s;
+    s
 }
 
 pub(super) fn waterfall_scene() -> Scene {
