@@ -1,34 +1,55 @@
 use bevy::prelude::*;
+use derive_builder::Builder;
 use rand::Rng;
+
+use crate::SpawnedParticleType::{Steel, Water, Wood};
 
 use super::components::*;
 use super::grid::*;
 use super::world::*;
 
-const LIQUID_PARTICLE_MASS: f32 = 1.;
-const WOOD_PARTICLE_MASS: f32 = 1.;
-const STEEL_PARTICLE_MASS: f32 = 1.5;
+pub(super) const LIQUID_PARTICLE_MASS: f32 = 1.;
+pub(super) const WOOD_PARTICLE_MASS: f32 = 1.;
+pub(super) const STEEL_PARTICLE_MASS: f32 = 1.5;
 
 // Tags particle spawner entities
 #[derive(Component)]
 pub(super) struct ParticleSpawnerTag;
 
-// todo refactor.
 #[allow(dead_code)]
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub(super) enum SpawnerPattern {
     SingleParticle,
-    LineHorizontal,
-    LineVertical,
-    Cube,
-    Tower,
-    Triangle,
+    LineHorizontal {
+        w: usize,
+    },
+    LineVertical {
+        h: usize,
+    },
+    Rectangle {
+        w: usize,
+        h: usize,
+    },
+    Tower {
+        w: usize,
+        h: usize,
+    },
+    Triangle {
+        l: usize,
+    },
+    FuncXY {
+        f: fn(x: f32, y: f32) -> bool,
+        domain: Mat2,
+        particles_wide: usize,
+        particles_tall: usize,
+    }, // Spiral{rotationPerTick: f32, ticksPerSpawn: usize},
 }
 
-#[derive(Clone, Component)]
+#[derive(Builder, Clone, Component, Debug, PartialEq)]
 pub(super) struct ParticleSpawnerInfo {
     pub(super) created_at: usize,
     pub(super) pattern: SpawnerPattern,
+    pub(super) spawn_on_creation: bool,
     pub(super) spawn_frequency: usize,
     pub(super) max_particles: usize,
     pub(super) particle_duration: usize,
@@ -36,181 +57,46 @@ pub(super) struct ParticleSpawnerInfo {
     pub(super) particle_velocity: Vec2,
     pub(super) particle_velocity_random_vec_a: Vec2,
     pub(super) particle_velocity_random_vec_b: Vec2,
-    pub(super) particle_mass: f32,
+    pub(super) particle_type: SpawnedParticleType,
+    pub(super) particle_texture: String,
 }
 
-pub(super) fn create_initial_spawners(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    grid: Res<Grid>,
-) {
-    // shoot arrows to the right
-    // young's modulus and shear modulus of steel.
-    // 180 Gpa young's
-    // 78Gpa shear
-    commands.spawn_bundle((
-        // todo density option to spawners
-        // todo calculate correct particle mass from material density and particle density
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Triangle,
-            spawn_frequency: 800,
-            max_particles: 200000,
-            particle_duration: 40000,
-            particle_origin: Vec2::new(1.1 * grid.width as f32 / 4., 1. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(100.3, -1.3),
-            particle_velocity_random_vec_a: Vec2::new(-0.0, -0.0),
-            particle_velocity_random_vec_b: Vec2::new(0.0, 0.0),
-            particle_mass: STEEL_PARTICLE_MASS,
-        },
-        steel_properties(),
-        asset_server.load::<Image, &str>("steel_particle.png"),
-        ParticleSpawnerTag,
-    ));
+// known material types
+#[derive(Clone, Debug, PartialEq)]
+pub(super) enum SpawnedParticleType {
+    Water {
+        cm: NewtonianFluidModel,
+        mass: f32,
+    },
+    Wood {
+        cm: NeoHookeanHyperElasticModel,
+        mass: f32,
+    },
+    Steel {
+        cm: NeoHookeanHyperElasticModel,
+        mass: f32,
+    },
+}
 
-    // spawn tower on first turn.
-    // searching says the properties of wood/plywood are 9Gpa young's modulus 0.6Gpa shear modulus
-    // but has been increased to 18 Gpa and 6 Gpa to make it more rigid
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Tower,
-            spawn_frequency: 99999999,
-            max_particles: 50000,
-            particle_duration: 500000,
-            particle_origin: Vec2::new(2.5 * grid.width as f32 / 4., 1.),
-            particle_velocity: Vec2::ZERO,
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: WOOD_PARTICLE_MASS,
-        },
-        NeoHookeanHyperElasticModel {
-            deformation_gradient: Default::default(),
-            elastic_lambda: 18. * 1000.,
-            elastic_mu: 6. * 1000.,
-        },
-        asset_server.load::<Image, &str>("wood_particle.png"),
-        ParticleSpawnerTag,
-    ));
-
-    // make it rain!
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 78,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 12.,
-                3. * grid.width as f32 / 4. + 16.,
-            ),
-            particle_velocity: Vec2::new(-20., -55.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 478,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 20.,
-                3. * grid.width as f32 / 4. + 12.,
-            ),
-            particle_velocity: Vec2::new(-20., -35.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 478,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. - 16.,
-                3. * grid.width as f32 / 4.,
-            ),
-            particle_velocity: Vec2::new(30., -35.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 800,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. - 8.,
-                3. * grid.width as f32 / 4.,
-            ),
-            particle_velocity: Vec2::new(40., -45.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 700,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(0.5 * grid.width as f32 / 4., 3. * grid.width as f32 / 4.),
-            particle_velocity: Vec2::new(50., -45.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
-    commands.spawn_bundle((
-        ParticleSpawnerInfo {
-            created_at: 0,
-            pattern: SpawnerPattern::Cube,
-            spawn_frequency: 600,
-            max_particles: 75000,
-            particle_duration: 100000,
-            particle_origin: Vec2::new(
-                0.5 * grid.width as f32 / 4. + 8.,
-                3. * grid.width as f32 / 4.,
-            ),
-            particle_velocity: Vec2::new(10., -45.),
-            particle_velocity_random_vec_a: Vec2::ZERO,
-            particle_velocity_random_vec_b: Vec2::ZERO,
-            particle_mass: LIQUID_PARTICLE_MASS,
-        },
-        water_properties(),
-        asset_server.load::<Image, &str>("liquid_particle.png"),
-        ParticleSpawnerTag,
-    ));
+impl SpawnedParticleType {
+    pub fn water() -> SpawnedParticleType {
+        Water {
+            cm: water_properties(),
+            mass: LIQUID_PARTICLE_MASS,
+        }
+    }
+    pub fn wood() -> SpawnedParticleType {
+        Wood {
+            cm: wood_properties(),
+            mass: WOOD_PARTICLE_MASS,
+        }
+    }
+    pub fn steel() -> SpawnedParticleType {
+        Steel {
+            cm: steel_properties(),
+            mass: STEEL_PARTICLE_MASS,
+        }
+    }
 }
 
 pub(super) fn tick_spawners(
@@ -218,48 +104,18 @@ pub(super) fn tick_spawners(
     world: Res<WorldState>,
     grid: Res<Grid>,
     particles: Query<(), With<ParticleTag>>,
-    spawners_solids: Query<
-        (
-            &ParticleSpawnerInfo,
-            &NeoHookeanHyperElasticModel,
-            &Handle<Image>,
-        ),
-        With<ParticleSpawnerTag>,
-    >,
-    spawners_fluids: Query<
-        (&ParticleSpawnerInfo, &NewtonianFluidModel, &Handle<Image>),
-        With<ParticleSpawnerTag>,
-    >,
+    spawners: Query<(&ParticleSpawnerInfo, &Handle<Image>), With<ParticleSpawnerTag>>,
 ) {
     // todo recreate spiral spawn pattern - rate per spawn and rotation per spawn
 
-    spawners_solids.for_each(|(spawner_info, particle_properties, texture)| {
-        if (world.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency == 0
-            && particles.iter().count() < spawner_info.max_particles
+    spawners.for_each(|(spawner_info, texture)| {
+        if (spawner_info.spawn_on_creation && world.current_tick == spawner_info.created_at + 1)
+            || (spawner_info.spawn_frequency > 0
+                && (world.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency
+                    == 0
+                && particles.iter().count() < spawner_info.max_particles)
         {
-            spawn_particles(
-                spawner_info,
-                *particle_properties,
-                &mut commands,
-                texture.clone(),
-                &world,
-                &grid,
-            );
-        }
-    });
-
-    spawners_fluids.for_each(|(spawner_info, particle_properties, texture)| {
-        if (world.current_tick - spawner_info.created_at) % spawner_info.spawn_frequency == 0
-            && particles.iter().count() < spawner_info.max_particles
-        {
-            spawn_particles(
-                spawner_info,
-                *particle_properties,
-                &mut commands,
-                texture.clone(),
-                &world,
-                &grid,
-            );
+            spawn_particles(spawner_info, &mut commands, &world, &grid, texture);
         }
     });
 }
@@ -267,14 +123,15 @@ pub(super) fn tick_spawners(
 fn spawn_particle(
     commands: &mut Commands,
     grid_width: usize,
-    cm: impl ConstitutiveModel + Copy,
-    spawner_info: &ParticleSpawnerInfo,
+    particle_origin: Vec2,
     spawn_offset: Vec2,
     vel: Option<Vec2>,
-    texture: Handle<Image>,
     created_at: usize,
+    max_age: Option<usize>,
+    st: SpawnedParticleType,
+    texture: &Handle<Image>,
 ) {
-    let particle_position = spawner_info.particle_origin + spawn_offset;
+    let particle_position = particle_origin + spawn_offset;
 
     let min = 3;
     let max = grid_width - 4;
@@ -285,27 +142,42 @@ fn spawn_particle(
         return;
     }
 
-    cm.new_particle(
-        commands,
-        texture.clone(),
-        particle_position,
-        spawner_info.particle_mass,
-        created_at,
-        vel,
-        Some(spawner_info.particle_duration),
-    );
+    let mut b = &mut commands.spawn_bundle((
+        Velocity(vel.unwrap_or(Vec2::ZERO)),
+        MaxAge(max_age.unwrap_or(5000)),
+        AffineMomentum(Mat2::ZERO),
+        CreatedAt(created_at),
+        CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
+        ParticleTag,
+    ));
+
+    match st {
+        SpawnedParticleType::Wood { cm, mass } | SpawnedParticleType::Steel { cm, mass } => {
+            b = b.insert_bundle(SpriteBundle {
+                texture: texture.clone(),
+                transform: Transform::from_scale(Vec3::splat(0.005)),
+                ..Default::default()
+            });
+            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+        }
+        SpawnedParticleType::Water { cm, mass } => {
+            b = b.insert_bundle(SpriteBundle {
+                texture: texture.clone(),
+                transform: Transform::from_scale(Vec3::splat(0.002)),
+                ..Default::default()
+            });
+            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+        }
+    };
 }
 
 pub(super) fn spawn_particles(
     spawner_info: &ParticleSpawnerInfo,
-    cm: impl ConstitutiveModel + Copy,
     commands: &mut Commands,
-    texture: Handle<Image>,
     world: &WorldState,
     grid: &Res<Grid>,
+    texture: &Handle<Image>,
 ) {
-    // todo prevent out-of-bounds spawning here.
-
     let mut rng = rand::thread_rng();
     let base_vel = spawner_info.particle_velocity;
     let random_a_contrib = Vec2::new(
@@ -323,82 +195,87 @@ pub(super) fn spawn_particles(
             spawn_particle(
                 commands,
                 grid.width,
-                cm,
-                spawner_info,
+                spawner_info.clone().particle_origin,
                 Vec2::ZERO,
                 Some(spawn_vel),
-                texture.clone(),
                 world.current_tick,
+                Some(spawner_info.clone().particle_duration),
+                spawner_info.clone().particle_type,
+                texture,
             );
         }
-        SpawnerPattern::LineHorizontal => {
-            for x in 0..100 {
+        SpawnerPattern::LineHorizontal { w } => {
+            for x in 0..w {
                 spawn_particle(
                     commands,
                     grid.width,
-                    cm,
-                    spawner_info,
+                    spawner_info.clone().particle_origin,
                     Vec2::new(x as f32, 0.),
                     Some(spawn_vel),
-                    texture.clone(),
                     world.current_tick,
+                    Some(spawner_info.clone().particle_duration),
+                    spawner_info.clone().particle_type,
+                    texture,
                 );
             }
         }
-        SpawnerPattern::LineVertical => {
-            for y in 0..15 {
+        SpawnerPattern::LineVertical { h } => {
+            for y in 0..h {
                 spawn_particle(
                     commands,
                     grid.width,
-                    cm,
-                    spawner_info,
+                    spawner_info.clone().particle_origin,
                     Vec2::new(0., y as f32),
                     Some(spawn_vel),
-                    texture.clone(),
                     world.current_tick,
+                    Some(spawner_info.clone().particle_duration),
+                    spawner_info.clone().particle_type,
+                    texture,
                 );
             }
         }
-        SpawnerPattern::Cube => {
-            for x in 0..15 {
-                for y in 0..15 {
+        SpawnerPattern::Rectangle { w, h } => {
+            for x in 0..w {
+                for y in 0..h {
                     spawn_particle(
                         commands,
                         grid.width,
-                        cm,
-                        spawner_info,
+                        spawner_info.clone().particle_origin,
                         Vec2::new(x as f32 + 0.001, y as f32 + 0.001),
                         Some(spawn_vel),
-                        texture.clone(),
                         world.current_tick,
+                        Some(spawner_info.clone().particle_duration),
+                        spawner_info.clone().particle_type,
+                        texture,
                     );
                 }
             }
         }
-        SpawnerPattern::Tower => {
-            for x in 0..80 {
-                for y in 0..90 {
+        SpawnerPattern::Tower { w, h } => {
+            for x in 0..w {
+                for y in 0..h {
                     spawn_particle(
                         commands,
                         grid.width,
-                        cm,
-                        spawner_info,
+                        spawner_info.clone().particle_origin,
                         Vec2::new(x as f32, y as f32),
                         Some(spawn_vel),
-                        texture.clone(),
                         world.current_tick,
+                        Some(spawner_info.clone().particle_duration),
+                        spawner_info.clone().particle_type,
+                        texture,
                     );
                 }
             }
         }
-        SpawnerPattern::Triangle => {
+        SpawnerPattern::Triangle { l } => {
             let x_axis: Vec2 = Vec2::new(1., 0.);
             let angle = match spawn_vel.length() {
-                0. => 0.,
+                x if x < 0.0000001 && x > -0.0000001 => 0.,
                 _ => x_axis.angle_between(spawn_vel),
             };
 
-            for x in 0..30 {
+            for x in 0..l {
                 for y in 0..x {
                     // offset y by 0.5 every other time
                     let mut ya: f32 = if x % 2 == 0 {
@@ -408,8 +285,8 @@ pub(super) fn spawn_particles(
                     };
                     ya -= x as f32 / 2.;
 
-                    // rotate by angle about triangle tip (15, 0)
-                    let pivot: Vec2 = Vec2::new(15., 0.);
+                    // rotate by angle about triangle tip
+                    let pivot: Vec2 = Vec2::new(l as f32, 0.);
                     let pos: Vec2 = Vec2::new(
                         (0.001 + pivot.x - x as f32) / 4.,
                         (0.001 + pivot.y + ya as f32) / 4.,
@@ -430,15 +307,50 @@ pub(super) fn spawn_particles(
                     spawn_particle(
                         commands,
                         grid.width,
-                        cm,
-                        spawner_info,
+                        spawner_info.clone().particle_origin,
                         pos_rotated,
                         Some(spawn_vel),
-                        texture.clone(),
                         world.current_tick,
+                        Some(spawner_info.clone().particle_duration),
+                        spawner_info.clone().particle_type,
+                        texture,
                     );
                 }
             }
         }
+        SpawnerPattern::FuncXY {
+            f,
+            domain,
+            particles_wide,
+            particles_tall,
+        } => {
+            let units_per_particle = Vec2::new(
+                domain.x_axis.length() / particles_wide as f32,
+                domain.y_axis.length() / particles_tall as f32,
+            );
+
+            for x in 0..particles_wide {
+                for y in 0..particles_tall {
+                    let xp = x as f32 * units_per_particle.x - domain.x_axis.length() / 2.;
+                    let yp = y as f32 * units_per_particle.y - domain.y_axis.length() / 2.;
+
+                    if f(xp as f32, yp as f32) {
+                        spawn_particle(
+                            commands,
+                            grid.width,
+                            spawner_info.clone().particle_origin,
+                            Vec2::new(xp as f32, yp as f32),
+                            Some(spawn_vel),
+                            world.current_tick,
+                            Some(spawner_info.clone().particle_duration),
+                            spawner_info.clone().particle_type,
+                            texture,
+                        );
+                    }
+                }
+            }
+        } //SpawnerPattern::Spiral => {
+          //
+          //}
     }
 }

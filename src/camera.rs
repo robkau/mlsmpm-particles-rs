@@ -9,7 +9,7 @@ pub(super) fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Wi
     let wnd = wnds.get_primary().unwrap();
     let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
 
-    let scale = f32::min(size.x, size.y) / grid.width as f32; // todo in response to events.
+    let scale = f32::min(size.x, size.y) / grid.width as f32; // adjust this to scale
 
     cb.transform = Transform::from_translation(Vec3::new(
         size.x / (scale * 2.0),

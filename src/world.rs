@@ -1,5 +1,7 @@
 use super::defaults::*;
 
+pub(super) struct NeedToReset(pub(super) bool);
+
 #[derive(Copy, Clone)]
 pub(super) struct WorldState {
     pub(super) dt: f32,
