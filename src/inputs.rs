@@ -1,43 +1,28 @@
-use bevy::math::Vec2;
-use bevy::prelude::{
-    AssetServer, Commands, Entity, Image, Input, KeyCode, Local, MouseButton, Query, Res, ResMut,
-    Windows, With,
-};
-use bevy_egui::{egui, EguiContext, EguiSettings};
-
-use crate::components::Scene;
-use crate::scene::hollow_box_scene;
-use crate::{
-    grid, ParticleSpawnerInfoBuilder, ParticleSpawnerTag, SpawnedParticleType, SpawnerPattern,
-};
-
-use super::components::*;
-use super::defaults::*;
-use super::world::*;
+use crate::prelude::*;
 
 #[derive(Default)]
-pub(super) struct ClickAndDragState {
+pub(crate) struct ClickAndDragState {
     dragging: bool,
     source_pos: Vec2,
 }
 
-pub(super) fn handle_inputs(
+pub(crate) fn handle_inputs(
     mut commands: Commands,
-    windows: Res<Windows>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
     asset_server: Res<AssetServer>,
     btn: Res<Input<MouseButton>>,
     keys: Res<Input<KeyCode>>,
-    mut egui_context: ResMut<EguiContext>,
+    mut contexts: EguiContexts,
     mut egui_settings: ResMut<EguiSettings>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut world: ResMut<WorldState>,
-    mut current_scene: ResMut<Scene>,
+    mut current_scene: ResMut<ParticleScene>,
     mut need_to_reset: ResMut<NeedToReset>,
-    grid: Res<grid::Grid>,
+    grid: Res<Grid>,
     mut spawner_drag: Local<ClickAndDragState>,
     mut particles: Query<(Entity, &Position, &mut Velocity, &Mass), With<ParticleTag>>,
 ) {
-    let window = windows.get_primary().unwrap();
+    let window = primary_window.single();
     if let Some(win_pos) = window.cursor_position() {
         // cursor is inside the window.
         // translate window position to grid position
@@ -46,17 +31,19 @@ pub(super) fn handle_inputs(
         let grid_pos = win_pos / scale;
 
         // if particle is near cursor, push it away.
-        particles.par_for_each_mut(PAR_BATCH_SIZE, |(_, position, mut velocity, _)| {
-            let dist = Vec2::new(position.0.x - grid_pos.x, position.0.y - grid_pos.y);
+        particles
+            .par_iter_mut()
+            .for_each_mut(|(_, position, mut velocity, _)| {
+                let dist = Vec2::new(position.0.x - grid_pos.x, position.0.y - grid_pos.y);
 
-            let mouse_radius = 6.;
+                let mouse_radius = 6.;
 
-            if dist.dot(dist) < mouse_radius * mouse_radius {
-                let norm_factor = dist.length() / mouse_radius;
-                let force = dist.normalize() * (norm_factor / 2.);
-                velocity.0 += force;
-            }
-        });
+                if dist.dot(dist) < mouse_radius * mouse_radius {
+                    let norm_factor = dist.length() / mouse_radius;
+                    let force = dist.normalize() * (norm_factor / 2.);
+                    velocity.0 += force;
+                }
+            });
 
         // can left click and drag to spawn new solid steel arrowhead with velocity.
         if btn.just_pressed(MouseButton::Left) && !spawner_drag.dragging {
@@ -83,7 +70,7 @@ pub(super) fn handle_inputs(
                 .particle_texture("steel_particle.png".to_string())
                 .build()
                 .unwrap();
-            commands.spawn_bundle((
+            commands.spawn((
                 si.clone(),
                 asset_server.load::<Image, &std::string::String>(&si.particle_texture),
                 ParticleSpawnerTag,
@@ -107,14 +94,14 @@ pub(super) fn handle_inputs(
                 .particle_texture("liquid_particle.png".to_string())
                 .build()
                 .unwrap();
-            commands.spawn_bundle((
+            commands.spawn((
                 si.clone(),
                 asset_server.load::<Image, &std::string::String>(&si.clone().particle_texture),
                 ParticleSpawnerTag,
             ));
         }
 
-        egui::Window::new("Controls").show(egui_context.ctx_mut(), |ui| {
+        egui::Window::new("Controls").show(contexts.ctx_mut(), |ui| {
             if ui.button("(R)eset").clicked() || keys.just_pressed(KeyCode::R) {
                 need_to_reset.0 = true;
                 return;
@@ -135,8 +122,8 @@ pub(super) fn handle_inputs(
                 // selected one to allow egui to highlight the correct label. The third parameter is the string to show.
                 ui.selectable_value(
                     &mut *current_scene,
-                    Scene::default(),
-                    Scene::default().name(),
+                    ParticleScene::default(),
+                    ParticleScene::default().name(),
                 );
                 let hbs = hollow_box_scene();
                 let hbs_name = hbs.clone().name();
@@ -153,14 +140,12 @@ pub(super) fn handle_inputs(
             if keys.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
                 *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
 
-                if let Some(window) = windows.get_primary() {
-                    let scale_factor = if toggle_scale_factor.unwrap() {
-                        1.0 / window.scale_factor()
-                    } else {
-                        1.0
-                    };
-                    egui_settings.scale_factor = scale_factor;
-                }
+                let scale_factor = if toggle_scale_factor.unwrap() {
+                    1.0 / window.scale_factor()
+                } else {
+                    1.0
+                };
+                egui_settings.scale_factor = scale_factor;
             }
 
             // todo:

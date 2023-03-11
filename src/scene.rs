@@ -1,25 +1,14 @@
 // there is a resource pointing to current scene
 // the current scene can be changed
 // on first tick where scene changed, despawn all old entities. spawn each particlespawner out of scene.
-
 use std::f32::consts::PI;
 
-use bevy::prelude::Vec2;
+use crate::prelude::*;
 
-use crate::components::{ParticleTag, Scene};
-use crate::{
-    AssetServer, Commands, Entity, Local, Mat2, ParticleSpawnerInfo, ParticleSpawnerInfoBuilder,
-    Query, Res, ResMut, SpawnedParticleType, SpawnerPattern, With, DEFAULT_DT, DEFAULT_GRAVITY,
-};
-
-use crate::shapes::{circle_20, hollow_box_20, sinxy};
-
-use crate::world::{NeedToReset, WorldState};
-
-pub(super) fn update_scene(
+pub(crate) fn update_scene(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
-    current_scene: Res<Scene>,
+    current_scene: Res<ParticleScene>,
     mut last_frame_scene: Local<String>,
     mut world: ResMut<WorldState>,
     mut need_to_reset: ResMut<NeedToReset>,
@@ -49,8 +38,8 @@ pub(super) fn update_scene(
     *last_frame_scene = current_scene.clone().name();
 }
 
-pub(super) fn hollow_box_scene() -> Scene {
-    let mut s = Scene::new(String::from("hollow_box"), DEFAULT_GRAVITY, DEFAULT_DT);
+pub(crate) fn hollow_box_scene() -> ParticleScene {
+    let mut s = ParticleScene::new(String::from("hollow_box"), DEFAULT_GRAVITY, DEFAULT_DT);
 
     s.add_spawner(
         ParticleSpawnerInfoBuilder::default()
@@ -249,8 +238,8 @@ pub(super) fn hollow_box_scene() -> Scene {
     s
 }
 
-pub(super) fn waterfall_scene() -> Scene {
-    let mut s = Scene::new(String::from("waterfall"), DEFAULT_GRAVITY, DEFAULT_DT);
+pub(crate) fn waterfall_scene() -> ParticleScene {
+    let mut s = ParticleScene::new(String::from("waterfall"), DEFAULT_GRAVITY, DEFAULT_DT);
 
     s.add_spawner(
         ParticleSpawnerInfoBuilder::default()

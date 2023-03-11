@@ -1,22 +1,5 @@
 #![allow(clippy::too_many_arguments)]
 
-extern crate core;
-
-use bevy::diagnostic::{
-    EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
-};
-use bevy::prelude::*;
-use bevy::window::WindowMode::BorderlessFullscreen;
-use bevy_egui::EguiPlugin;
-
-use camera::*;
-use spawners::*;
-
-use crate::components::Scene;
-use crate::defaults::*;
-use crate::world::NeedToReset;
-
-mod camera;
 mod components;
 mod defaults;
 mod expire_old;
@@ -24,6 +7,8 @@ mod grid;
 mod inputs;
 mod particle_sprites;
 mod scene;
+mod setup_camera;
+mod setup_windows;
 mod shapes;
 mod spawners;
 mod step_g2p;
@@ -33,19 +18,44 @@ mod step_update_deformations;
 mod step_update_grid;
 mod world;
 
+mod prelude {
+    pub(crate) use bevy::diagnostic::{
+        EntityCountDiagnosticsPlugin, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
+    };
+    pub(crate) use bevy::math::{Mat2, Vec2};
+    pub(crate) use bevy::prelude::*;
+    pub(crate) use bevy::window::WindowMode::*;
+    pub(crate) use bevy::window::{PrimaryWindow, Window};
+    pub(crate) use bevy_egui::egui;
+    pub(crate) use bevy_egui::*;
+
+    pub(crate) use crate::components::*;
+    pub(crate) use crate::defaults::*;
+    pub(crate) use crate::grid::*;
+    pub(crate) use crate::inputs::*;
+    pub(crate) use crate::scene::*;
+    pub(crate) use crate::setup_camera::*;
+    pub(crate) use crate::setup_windows::*;
+    pub(crate) use crate::shapes::*;
+    pub(crate) use crate::spawners::*;
+    pub(crate) use crate::world::*;
+}
+
+use prelude::*;
+
+#[derive(SystemSet, Debug, Hash, PartialEq, Eq, Clone)]
+enum Sets {
+    Input,
+    P2g,
+    G2p,
+}
+
 fn main() {
     App::new()
-        .insert_resource(Msaa { samples: 4 })
-        .insert_resource(WindowDescriptor {
-            title: "mlsmpm-particles-rs".to_string(),
-            //width: DEFAULT_WINDOW_WIDTH,
-            //height: DEFAULT_WINDOW_HEIGHT, // todo mouse cursor still wrong in fullscreen on mac
-            mode: BorderlessFullscreen,
-            ..Default::default()
-        })
+        .insert_resource(Msaa::Sample4)
         .insert_resource(grid::Grid::new(DEFAULT_GRID_WIDTH))
         .insert_resource(world::WorldState::default())
-        .insert_resource(Scene::default())
+        .insert_resource(ParticleScene::default())
         .insert_resource(NeedToReset(false))
         .add_plugins(DefaultPlugins)
         .add_plugin(LogDiagnosticsPlugin::default())
@@ -53,67 +63,41 @@ fn main() {
         .add_plugin(EntityCountDiagnosticsPlugin::default())
         .add_plugin(FrameTimeDiagnosticsPlugin::default())
         .add_startup_system(setup_camera)
-        .add_system(bevy::window::close_on_esc)
-        .add_system(
-            inputs::handle_inputs
-                .label("handle_inputs")
-                .before("tick_spawners"),
+        .add_systems(
+            (
+                bevy::window::close_on_esc,
+                handle_inputs,
+                tick_spawners,
+                reset_grid,
+                step_update_cells::update_cells,
+                step_update_cells::apply_update_cell_computations,
+            )
+                .chain()
+                .in_set(Sets::Input),
         )
-        .add_system(
-            spawners::tick_spawners
-                .label("tick_spawners")
-                .before("reset_grid"),
+        .add_systems(
+            (
+                step_p2g::particles_to_grid_fluids,
+                step_p2g::particles_to_grid_solids,
+            )
+                .chain()
+                .in_set(Sets::P2g),
         )
-        .add_system(grid::reset_grid.label("reset_grid").before("update_cells"))
-        .add_system(
-            step_update_cells::update_cells
-                .label("update_cells")
-                .before("apply_update_cell_computations"),
+        .add_systems(
+            (
+                step_update_grid::update_grid,
+                step_g2p::grid_to_particles,
+                step_update_deformations::update_deformation_gradients,
+                expire_old::delete_old_entities,
+                particle_sprites::update_sprites,
+                update_scene,
+            )
+                .chain()
+                .in_set(Sets::G2p),
         )
-        .add_system(
-            step_update_cells::apply_update_cell_computations
-                .label("apply_update_cell_computations")
-                .before("p2g_f")
-                .before("p2g_s"),
-        )
-        .add_system(
-            step_p2g::particles_to_grid_fluids
-                .label("p2g_f")
-                .before("update_grid"),
-        )
-        .add_system(
-            step_p2g::particles_to_grid_solids
-                .label("p2g_s")
-                .before("update_grid"),
-        )
-        .add_system(
-            step_update_grid::update_grid
-                .label("update_grid")
-                .before("g2p"),
-        )
-        .add_system(
-            step_g2p::grid_to_particles
-                .label("g2p")
-                .before("update_deformation_gradients"),
-        )
-        .add_system(
-            step_update_deformations::update_deformation_gradients
-                .label("update_deformation_gradients")
-                .before("delete_old_entities"),
-        )
-        .add_system(
-            expire_old::delete_old_entities
-                .label("delete_old_entities")
-                .before("update_sprites"),
-        )
-        .add_system(
-            particle_sprites::update_sprites
-                .label("update_sprites")
-                .before("update_scene"),
-        )
-        // todo: egui widget graphs with total energy in system., # of particles, etc.
-        .add_system(scene::update_scene.label("update_scene"))
-        .run();
+        .configure_set(Sets::Input.before(Sets::P2g))
+        .configure_set(Sets::P2g.before(Sets::G2p))
+        .run()
 }
 
 // todo render to (animated) image output

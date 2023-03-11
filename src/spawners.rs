@@ -1,24 +1,19 @@
-use bevy::prelude::*;
 use derive_builder::Builder;
 use rand::Rng;
 
-use crate::SpawnedParticleType::{Steel, Water, Wood};
+use crate::prelude::*;
 
-use super::components::*;
-use super::grid::*;
-use super::world::*;
-
-pub(super) const LIQUID_PARTICLE_MASS: f32 = 1.;
-pub(super) const WOOD_PARTICLE_MASS: f32 = 1.;
-pub(super) const STEEL_PARTICLE_MASS: f32 = 1.5;
+pub(crate) const LIQUID_PARTICLE_MASS: f32 = 1.;
+pub(crate) const WOOD_PARTICLE_MASS: f32 = 1.;
+pub(crate) const STEEL_PARTICLE_MASS: f32 = 1.5;
 
 // Tags particle spawner entities
 #[derive(Component)]
-pub(super) struct ParticleSpawnerTag;
+pub(crate) struct ParticleSpawnerTag;
 
 #[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum SpawnerPattern {
+pub(crate) enum SpawnerPattern {
     SingleParticle,
     LineHorizontal {
         w: usize,
@@ -46,24 +41,24 @@ pub(super) enum SpawnerPattern {
 }
 
 #[derive(Builder, Clone, Component, Debug, PartialEq)]
-pub(super) struct ParticleSpawnerInfo {
-    pub(super) created_at: usize,
-    pub(super) pattern: SpawnerPattern,
-    pub(super) spawn_on_creation: bool,
-    pub(super) spawn_frequency: usize,
-    pub(super) max_particles: usize,
-    pub(super) particle_duration: usize,
-    pub(super) particle_origin: Vec2,
-    pub(super) particle_velocity: Vec2,
-    pub(super) particle_velocity_random_vec_a: Vec2,
-    pub(super) particle_velocity_random_vec_b: Vec2,
-    pub(super) particle_type: SpawnedParticleType,
-    pub(super) particle_texture: String,
+pub(crate) struct ParticleSpawnerInfo {
+    pub(crate) created_at: usize,
+    pub(crate) pattern: SpawnerPattern,
+    pub(crate) spawn_on_creation: bool,
+    pub(crate) spawn_frequency: usize,
+    pub(crate) max_particles: usize,
+    pub(crate) particle_duration: usize,
+    pub(crate) particle_origin: Vec2,
+    pub(crate) particle_velocity: Vec2,
+    pub(crate) particle_velocity_random_vec_a: Vec2,
+    pub(crate) particle_velocity_random_vec_b: Vec2,
+    pub(crate) particle_type: SpawnedParticleType,
+    pub(crate) particle_texture: String,
 }
 
 // known material types
 #[derive(Clone, Debug, PartialEq)]
-pub(super) enum SpawnedParticleType {
+pub(crate) enum SpawnedParticleType {
     Water {
         cm: NewtonianFluidModel,
         mass: f32,
@@ -79,27 +74,27 @@ pub(super) enum SpawnedParticleType {
 }
 
 impl SpawnedParticleType {
-    pub fn water() -> SpawnedParticleType {
-        Water {
+    pub(crate) fn water() -> SpawnedParticleType {
+        SpawnedParticleType::Water {
             cm: water_properties(),
             mass: LIQUID_PARTICLE_MASS,
         }
     }
-    pub fn wood() -> SpawnedParticleType {
-        Wood {
+    pub(crate) fn wood() -> SpawnedParticleType {
+        SpawnedParticleType::Wood {
             cm: wood_properties(),
             mass: WOOD_PARTICLE_MASS,
         }
     }
-    pub fn steel() -> SpawnedParticleType {
-        Steel {
+    pub(crate) fn steel() -> SpawnedParticleType {
+        SpawnedParticleType::Steel {
             cm: steel_properties(),
             mass: STEEL_PARTICLE_MASS,
         }
     }
 }
 
-pub(super) fn tick_spawners(
+pub(crate) fn tick_spawners(
     mut commands: Commands,
     world: Res<WorldState>,
     grid: Res<Grid>,
@@ -142,7 +137,8 @@ fn spawn_particle(
         return;
     }
 
-    let mut b = &mut commands.spawn_bundle((
+    let mut b = &mut commands.spawn_empty();
+    b = b.insert((
         Velocity(vel.unwrap_or(Vec2::ZERO)),
         MaxAge(max_age.unwrap_or(5000)),
         AffineMomentum(Mat2::ZERO),
@@ -153,25 +149,25 @@ fn spawn_particle(
 
     match st {
         SpawnedParticleType::Wood { cm, mass } | SpawnedParticleType::Steel { cm, mass } => {
-            b = b.insert_bundle(SpriteBundle {
+            b = b.insert(SpriteBundle {
                 texture: texture.clone(),
                 transform: Transform::from_scale(Vec3::splat(0.005)),
                 ..Default::default()
             });
-            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+            b = b.insert((Position(particle_position), cm, Mass(mass)));
         }
         SpawnedParticleType::Water { cm, mass } => {
-            b = b.insert_bundle(SpriteBundle {
+            b = b.insert(SpriteBundle {
                 texture: texture.clone(),
                 transform: Transform::from_scale(Vec3::splat(0.002)),
                 ..Default::default()
             });
-            b.insert_bundle((Position(particle_position), cm, Mass(mass)));
+            b = b.insert((Position(particle_position), cm, Mass(mass)));
         }
     };
 }
 
-pub(super) fn spawn_particles(
+pub(crate) fn spawn_particles(
     spawner_info: &ParticleSpawnerInfo,
     commands: &mut Commands,
     world: &WorldState,

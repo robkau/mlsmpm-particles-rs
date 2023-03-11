@@ -1,21 +1,22 @@
-use super::defaults::*;
+use crate::prelude::*;
 
-pub(super) struct NeedToReset(pub(super) bool);
+#[derive(Copy, Clone, Resource)]
+pub(crate) struct NeedToReset(pub(crate) bool);
 
-#[derive(Copy, Clone)]
-pub(super) struct WorldState {
-    pub(super) dt: f32,
-    pub(super) gravity: f32,
-    pub(super) gravity_enabled: bool,
-    pub(super) current_tick: usize,
+#[derive(Copy, Clone, Resource)]
+pub(crate) struct WorldState {
+    pub(crate) dt: f32,
+    pub(crate) gravity: f32,
+    pub(crate) gravity_enabled: bool,
+    pub(crate) current_tick: usize,
 }
 
 impl WorldState {
-    pub(super) fn toggle_gravity(&mut self) {
+    pub(crate) fn toggle_gravity(&mut self) {
         self.gravity_enabled = !self.gravity_enabled;
     }
 
-    pub(super) fn default() -> WorldState {
+    pub(crate) fn default() -> WorldState {
         WorldState {
             dt: DEFAULT_DT,
             gravity: DEFAULT_GRAVITY,
@@ -24,7 +25,7 @@ impl WorldState {
         }
     }
 
-    pub(super) fn update(&mut self) {
+    pub(crate) fn update(&mut self) {
         self.current_tick += 1;
     }
 }

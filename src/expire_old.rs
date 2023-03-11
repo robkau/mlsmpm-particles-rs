@@ -1,9 +1,6 @@
-use bevy::prelude::*;
+use crate::prelude::*;
 
-use crate::components::*;
-use crate::world::*;
-
-pub(super) fn delete_old_entities(
+pub(crate) fn delete_old_entities(
     mut commands: Commands,
     world: Res<WorldState>,
     aged_entities: Query<(Entity, &CreatedAt, &MaxAge)>,

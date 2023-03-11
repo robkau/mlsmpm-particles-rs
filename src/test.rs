@@ -71,7 +71,7 @@ mod tests {
                     velocity: Vec2::ZERO,
                     mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -82,8 +82,7 @@ mod tests {
         update_stage.add_system(update_cells);
         // add particle to world
         let particle_id = world
-            .spawn()
-            .insert_bundle((
+            .spawn((
                 Position(Vec2::new(5.0, 5.0)),
                 Velocity(Vec2::new(0.0, -1.0)),
                 Mass(1.06),
@@ -154,7 +153,7 @@ mod tests {
                     velocity: Vec2::ZERO,
                     mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -168,8 +167,7 @@ mod tests {
         update_stage.add_system(particles_to_grid);
         // add particle to world
         let particle_id = world
-            .spawn()
-            .insert_bundle((
+            .spawn((
                 Position(Vec2::new(5.0, 5.0)),
                 Velocity(Vec2::new(0.0, -1.0)),
                 Mass(1.06),
@@ -231,7 +229,7 @@ mod tests {
                     velocity: Vec2::ZERO,
                     mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -241,8 +239,7 @@ mod tests {
         };
 
         let particle_1_id = world
-            .spawn()
-            .insert_bundle((
+            .spawn((
                 Position(Vec2::new(5.2, 5.3)),
                 Velocity(Vec2::new(3.3, 3.0)),
                 Mass(1.06),
@@ -255,8 +252,7 @@ mod tests {
             .id();
 
         let particle_2_id = world
-            .spawn()
-            .insert_bundle((
+            .spawn((
                 Position(Vec2::new(6.6, 5.9)),
                 Velocity(Vec2::new(1.2, -1.0)),
                 Mass(1.23),
@@ -372,7 +368,7 @@ mod tests {
                     velocity: Vec2::ZERO,
                     mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,
@@ -399,7 +395,7 @@ mod tests {
                     velocity: Vec2::ZERO,
                     mass: 0.0,
                 };
-                TEST_GRID_WIDTH * TEST_GRID_WIDTH,
+                TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
             dt: TEST_DT,

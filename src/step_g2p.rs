@@ -1,20 +1,14 @@
-use bevy::math::Mat2;
-use bevy::prelude::*;
-
-use crate::components::*;
-use crate::defaults::*;
-use crate::grid::*;
-use crate::world::*;
+use crate::prelude::*;
 
 // G2P MPM step
-pub(super) fn grid_to_particles(
+pub(crate) fn grid_to_particles(
     world: Res<WorldState>,
     grid: Res<Grid>,
     mut particles: Query<(&mut Position, &mut Velocity, &mut AffineMomentum), With<ParticleTag>>,
 ) {
-    particles.par_for_each_mut(
-        PAR_BATCH_SIZE,
-        |(mut position, mut velocity, mut affine_momentum)| {
+    particles
+        .par_iter_mut()
+        .for_each_mut(|(mut position, mut velocity, mut affine_momentum)| {
             //// reset particle velocity. we calculate it from scratch each step using the grid
             velocity.0 = Vec2::ZERO;
 
@@ -77,6 +71,5 @@ pub(super) fn grid_to_particles(
             if position_next.y > wall_max {
                 velocity.0.y += wall_max - position_next.y;
             }
-        },
-    );
+        });
 }

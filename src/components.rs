@@ -1,48 +1,43 @@
-use bevy::math::{Mat2, Vec2};
-use bevy::prelude::*;
-
-use crate::scene::waterfall_scene;
-use crate::world::WorldState;
-use crate::{ParticleSpawnerInfo, ParticleSpawnerTag};
+use crate::prelude::*;
 
 // Tags particle entities
 #[derive(Component)]
-pub(super) struct ParticleTag;
+pub(crate) struct ParticleTag;
 
 // XY position
 #[derive(Component, Debug)]
-pub(super) struct Position(pub(super) Vec2);
+pub(crate) struct Position(pub(crate) Vec2);
 
 // XY velocity
 #[derive(Component, Debug)]
-pub(super) struct Velocity(pub(super) Vec2);
+pub(crate) struct Velocity(pub(crate) Vec2);
 
 // mass
 #[derive(Component)]
-pub(super) struct Mass(pub(super) f32);
+pub(crate) struct Mass(pub(crate) f32);
 
 // 2x2 affine momentum matrix
 #[derive(Component)]
-pub(super) struct AffineMomentum(pub(super) Mat2);
+pub(crate) struct AffineMomentum(pub(crate) Mat2);
 
 // fluid constitutive model properties
 #[derive(Clone, Copy, Component, Debug, PartialEq)]
-pub(super) struct NewtonianFluidModel {
-    pub(super) rest_density: f32,
-    pub(super) dynamic_viscosity: f32,
-    pub(super) eos_stiffness: f32,
-    pub(super) eos_power: f32,
+pub(crate) struct NewtonianFluidModel {
+    pub(crate) rest_density: f32,
+    pub(crate) dynamic_viscosity: f32,
+    pub(crate) eos_stiffness: f32,
+    pub(crate) eos_power: f32,
 }
 
 // solid constitutive model properties
 #[derive(Clone, Copy, Component, Debug, PartialEq)]
-pub(super) struct NeoHookeanHyperElasticModel {
-    pub(super) deformation_gradient: Mat2,
-    pub(super) elastic_lambda: f32, // youngs modulus
-    pub(super) elastic_mu: f32,     // shear modulus
+pub(crate) struct NeoHookeanHyperElasticModel {
+    pub(crate) deformation_gradient: Mat2,
+    pub(crate) elastic_lambda: f32, // youngs modulus
+    pub(crate) elastic_mu: f32,     // shear modulus
 }
 
-pub(super) fn steel_properties() -> NeoHookeanHyperElasticModel {
+pub(crate) fn steel_properties() -> NeoHookeanHyperElasticModel {
     NeoHookeanHyperElasticModel {
         deformation_gradient: Default::default(),
         elastic_lambda: 180. * 1000.,
@@ -50,7 +45,7 @@ pub(super) fn steel_properties() -> NeoHookeanHyperElasticModel {
     }
 }
 
-pub(super) fn wood_properties() -> NeoHookeanHyperElasticModel {
+pub(crate) fn wood_properties() -> NeoHookeanHyperElasticModel {
     NeoHookeanHyperElasticModel {
         deformation_gradient: Default::default(),
         elastic_lambda: 18. * 1000.,
@@ -58,7 +53,7 @@ pub(super) fn wood_properties() -> NeoHookeanHyperElasticModel {
     }
 }
 
-pub(super) fn water_properties() -> NewtonianFluidModel {
+pub(crate) fn water_properties() -> NewtonianFluidModel {
     NewtonianFluidModel {
         rest_density: 4.,
         dynamic_viscosity: 0.1,
@@ -69,34 +64,34 @@ pub(super) fn water_properties() -> NewtonianFluidModel {
 
 // computed changes to-be-applied to grid on next steps
 #[derive(Component)]
-pub(super) struct CellMassMomentumContributions(pub(super) [GridMassAndMomentumChange; 9]);
+pub(crate) struct CellMassMomentumContributions(pub(crate) [GridMassAndMomentumChange; 9]);
 
 #[derive(Clone, Copy)]
-pub(super) struct GridMassAndMomentumChange(pub(super) usize, pub(super) f32, pub(super) Vec2);
+pub(crate) struct GridMassAndMomentumChange(pub(crate) usize, pub(crate) f32, pub(crate) Vec2);
 
 // tick the entity was created on
 #[derive(Component)]
-pub(super) struct CreatedAt(pub(super) usize);
+pub(crate) struct CreatedAt(pub(crate) usize);
 
 // entity deleted after this many ticks
 #[derive(Component)]
-pub(super) struct MaxAge(pub(super) usize);
+pub(crate) struct MaxAge(pub(crate) usize);
 
-#[derive(Clone, Component, Debug, PartialEq)]
-pub(super) struct Scene {
+#[derive(Clone, Resource, Debug, PartialEq)]
+pub(crate) struct ParticleScene {
     name: String,
     spawners: Vec<ParticleSpawnerInfo>,
     gravity: f32,
     dt: f32,
 }
 
-impl Scene {
-    pub(super) fn default() -> Scene {
+impl ParticleScene {
+    pub(crate) fn default() -> ParticleScene {
         waterfall_scene()
     }
 
-    pub(super) fn new(name: String, gravity: f32, dt: f32) -> Scene {
-        Scene {
+    pub(crate) fn new(name: String, gravity: f32, dt: f32) -> ParticleScene {
+        ParticleScene {
             name,
             spawners: vec![],
             gravity,
@@ -104,15 +99,15 @@ impl Scene {
         }
     }
 
-    pub(super) fn add_spawner(&mut self, ps: ParticleSpawnerInfo) {
+    pub(crate) fn add_spawner(&mut self, ps: ParticleSpawnerInfo) {
         self.spawners.push(ps);
     }
 
-    pub(super) fn name(self) -> String {
+    pub(crate) fn name(self) -> String {
         self.name
     }
 
-    pub(super) fn actualize(
+    pub(crate) fn actualize(
         self,
         commands: &mut Commands,
         world: &mut ResMut<WorldState>,
@@ -126,7 +121,7 @@ impl Scene {
             let mut s = spawner.clone();
 
             s.created_at = 0;
-            commands.spawn_bundle((
+            commands.spawn((
                 s.clone(),
                 asset_server.load::<Image, &std::string::String>(&s.clone().particle_texture),
                 ParticleSpawnerTag,

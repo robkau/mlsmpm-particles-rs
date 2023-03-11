@@ -1,21 +1,20 @@
-use bevy::math::{Mat2, Vec2};
-use bevy::prelude::ResMut;
+use crate::prelude::*;
 
 #[derive(Debug, Clone, Copy)]
-pub(super) struct Cell {
-    pub(super) velocity: Vec2,
-    pub(super) mass: f32,
+pub(crate) struct Cell {
+    pub(crate) velocity: Vec2,
+    pub(crate) mass: f32,
 }
 
 // MPM grid resource
-#[derive(Clone)]
-pub(super) struct Grid {
-    pub(super) cells: Vec<Cell>,
-    pub(super) width: usize,
+#[derive(Clone, Resource)]
+pub(crate) struct Grid {
+    pub(crate) cells: Vec<Cell>,
+    pub(crate) width: usize,
 }
 
 impl Grid {
-    pub(super) fn new(width: usize) -> Grid {
+    pub(crate) fn new(width: usize) -> Grid {
         Grid {
             cells: vec![
                 Cell {
@@ -28,18 +27,18 @@ impl Grid {
         }
     }
 
-    pub(super) fn index_at(&self, x: usize, y: usize) -> usize {
+    pub(crate) fn index_at(&self, x: usize, y: usize) -> usize {
         x * self.width + y
     }
 
-    pub(super) fn reset(&mut self) {
+    pub(crate) fn reset(&mut self) {
         for mut cell in self.cells.iter_mut() {
             cell.velocity = Vec2::ZERO;
             cell.mass = 0.0;
         }
     }
 
-    pub(super) fn update(&mut self, dt: f32, gravity: f32) {
+    pub(crate) fn update(&mut self, dt: f32, gravity: f32) {
         for (i, cell) in self.cells.iter_mut().enumerate() {
             if cell.mass > 0.0 {
                 // convert momentum to velocity, apply gravity
@@ -78,11 +77,11 @@ impl Grid {
     }
 }
 
-pub(super) fn reset_grid(mut grid: ResMut<Grid>) {
+pub(crate) fn reset_grid(mut grid: ResMut<Grid>) {
     grid.reset();
 }
 
-pub(super) fn quadratic_interpolation_weights(cell_diff: Vec2) -> [Vec2; 3] {
+pub(crate) fn quadratic_interpolation_weights(cell_diff: Vec2) -> [Vec2; 3] {
     [
         Vec2::new(
             0.5 * f32::powi(0.5 - cell_diff.x, 2),
@@ -99,7 +98,7 @@ pub(super) fn quadratic_interpolation_weights(cell_diff: Vec2) -> [Vec2; 3] {
     ]
 }
 
-pub(super) fn weighted_velocity_and_cell_dist_to_term(
+pub(crate) fn weighted_velocity_and_cell_dist_to_term(
     weighted_velocity: Vec2,
     cell_dist: Vec2,
 ) -> Mat2 {

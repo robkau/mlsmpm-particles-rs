@@ -1,12 +1,13 @@
-use bevy::math::{Vec2, Vec3};
-use bevy::prelude::{Camera2dBundle, Commands, Res, Transform, Windows};
+use crate::prelude::*;
 
-use crate::grid::Grid;
-
-pub(super) fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Windows>) {
+pub(crate) fn setup_camera(
+    mut commands: Commands,
+    grid: Res<Grid>,
+    primary_window: Query<&Window, With<PrimaryWindow>>,
+) {
     let mut cb = Camera2dBundle::default();
 
-    let wnd = wnds.get_primary().unwrap();
+    let wnd = primary_window.single();
     let size = Vec2::new(wnd.width() as f32, wnd.height() as f32);
 
     let scale = f32::min(size.x, size.y) / grid.width as f32; // adjust this to scale
@@ -17,5 +18,5 @@ pub(super) fn setup_camera(mut commands: Commands, grid: Res<Grid>, wnds: Res<Wi
         0.0,
     ));
     cb.projection.scale = 1.0 / scale;
-    commands.spawn_bundle(cb);
+    commands.spawn(cb);
 }

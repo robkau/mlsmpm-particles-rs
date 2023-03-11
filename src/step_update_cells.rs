@@ -1,10 +1,6 @@
-use bevy::prelude::*;
+use crate::prelude::*;
 
-use crate::components::*;
-use crate::defaults::*;
-use crate::grid::*;
-
-pub(super) fn update_cells(
+pub(crate) fn update_cells(
     grid: Res<Grid>,
     mut particles: Query<
         (
@@ -21,8 +17,7 @@ pub(super) fn update_cells(
     if num_particles < 1 {
         return;
     }
-    particles.par_for_each_mut(
-        PAR_BATCH_SIZE,
+    particles.par_iter_mut().for_each_mut(
         |(position, velocity, mass, affine_momentum, mut mmc)| {
             let cell_x: u32 = position.0.x as u32;
             let cell_y: u32 = position.0.y as u32;
@@ -60,7 +55,7 @@ pub(super) fn update_cells(
 
 // todo look into replacing CellMassMomentumContributions with bevy events ..
 // .. after this one is done https://github.com/bevyengine/bevy/issues/2648
-pub(super) fn apply_update_cell_computations(
+pub(crate) fn apply_update_cell_computations(
     mut grid: ResMut<Grid>,
     particles: Query<(&CellMassMomentumContributions,), With<ParticleTag>>,
 ) {

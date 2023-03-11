@@ -1,10 +1,6 @@
-use bevy::prelude::*;
+use crate::prelude::*;
 
-use crate::components::*;
-use crate::grid::Grid;
-use crate::world::*;
-
-pub(super) fn update_grid(
+pub(crate) fn update_grid(
     mut grid: ResMut<Grid>,
     mut world: ResMut<WorldState>,
     particles: Query<(&CellMassMomentumContributions,), With<ParticleTag>>,
