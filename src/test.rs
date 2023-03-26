@@ -2,10 +2,11 @@ use bevy::math::{Mat2, Vec2};
 
 #[cfg(test)]
 mod tests {
-    use crate::*;
-
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
     use super::*;
+    use crate::prelude::*;
+    use crate::step_update_grid::update_grid;
+    use crate::*;
+    use approx::*;
 
     const TEST_GRID_WIDTH: usize = 10;
     const TEST_DT: f32 = 0.1;
@@ -64,7 +65,16 @@ mod tests {
     // in update_cells system, a single particle in freefall should update mass and velocity of surrounding cells.
     fn test_update_cells_iteration() {
         let mut world = World::default();
-        let mut update_stage = SystemStage::parallel();
+
+        let mut my_schedule = Schedule::new();
+        my_schedule.add_systems(
+            (
+                step_update_cells::update_cells,
+                step_update_cells::apply_update_cell_computations,
+            )
+                .chain(),
+        );
+
         world.insert_resource(Grid {
             cells: vec![
                 Cell {
@@ -74,12 +84,7 @@ mod tests {
                 TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
-            dt: TEST_DT,
-            current_tick: 0,
-            gravity_enabled: true,
-            gravity: TEST_GRAVITY,
         });
-        update_stage.add_system(update_cells);
         // add particle to world
         let particle_id = world
             .spawn((
@@ -90,11 +95,12 @@ mod tests {
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
+                CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
                 ParticleTag,
             ))
             .id();
         // iterate systems
-        update_stage.run(&mut world);
+        my_schedule.run(&mut world);
 
         // particle position should not change
         let particle_position = world.get::<Position>(particle_id);
@@ -126,15 +132,18 @@ mod tests {
         assert_eq!(gr.cells[64].mass, 0.0);
         assert_eq!(gr.cells[65].mass, 0.0);
         assert_eq!(gr.cells[66].mass, 0.0);
-        assert_eq!(true, approx_equal(gr.cells[44].velocity.x, 0.0673895, 5));
-        assert_eq!(true, approx_equal(gr.cells[44].velocity.y, -0.2888818, 5));
-        assert_eq!(true, approx_equal(gr.cells[45].velocity.x, 0.0608175, 5));
-        assert_eq!(true, approx_equal(gr.cells[45].velocity.y, -0.2440968, 5));
+
+        assert_abs_diff_eq!(-0.28888178, gr.cells[44].velocity.y,);
+
+        assert_abs_diff_eq!(gr.cells[44].velocity.x, 0.0673895, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[44].velocity.y, -0.2888818, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[45].velocity.x, 0.0608175, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[45].velocity.y, -0.2440968, epsilon = 1e-4);
         assert_eq!(gr.cells[46].velocity, Vec2::new(0.0, 0.0));
-        assert_eq!(true, approx_equal(gr.cells[54].velocity.x, -0.0608175, 5));
-        assert_eq!(true, approx_equal(gr.cells[54].velocity.y, -0.2859032, 5));
-        assert_eq!(true, approx_equal(gr.cells[55].velocity.x, -0.0673895, 5));
-        assert_eq!(true, approx_equal(gr.cells[55].velocity.y, -0.2411182, 5));
+        assert_abs_diff_eq!(gr.cells[54].velocity.x, -0.0608175, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[54].velocity.y, -0.2859032, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[55].velocity.x, -0.0673895, epsilon = 1e-4);
+        assert_abs_diff_eq!(gr.cells[55].velocity.y, -0.2411182, epsilon = 1e-4);
         assert_eq!(gr.cells[56].velocity, Vec2::new(0.0, 0.0));
         assert_eq!(gr.cells[64].velocity, Vec2::new(0.0, 0.0));
         assert_eq!(gr.cells[65].velocity, Vec2::new(0.0, 0.0));
@@ -145,7 +154,10 @@ mod tests {
     // in particles_to_grid system, a single particle in freefall should update momentum (stored as scaled velocity) of surrounding cells.
     fn test_particles_to_grid_iteration() {
         let mut world = World::default();
-        let mut update_stage = SystemStage::parallel();
+        let mut my_schedule = Schedule::new();
+
+        my_schedule.add_systems((step_p2g::particles_to_grid_fluids, update_grid).chain());
+
         // manually put some mass in the grid at particle location since previous steps not run
         let mut gr = Grid {
             cells: vec![
@@ -156,35 +168,36 @@ mod tests {
                 TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
-            dt: TEST_DT,
-            current_tick: 0,
-            gravity_enabled: true,
-            gravity: TEST_GRAVITY,
         };
         let particle_cell_index = gr.index_at(5, 5);
         gr.cells[particle_cell_index].mass = 0.25;
         world.insert_resource(gr);
-        update_stage.add_system(particles_to_grid);
+
+        world.insert_resource(WorldState::new(TEST_DT, TEST_GRAVITY, true));
+
         // add particle to world
         let particle_id = world
             .spawn((
                 Position(Vec2::new(5.0, 5.0)),
                 Velocity(Vec2::new(0.0, -1.0)),
                 Mass(1.06),
-                RestDensity(4.),
-                DynamicViscosity(0.1),
-                EosStiffness(10.),
-                EosPower(4.),
+                NewtonianFluidModel {
+                    rest_density: 4.,
+                    dynamic_viscosity: 0.1,
+                    eos_stiffness: 10.,
+                    eos_power: 4.,
+                },
                 AffineMomentum(Mat2::from_cols(
                     Vec2::new(-0.4838, 0.01124),
                     Vec2::new(-0.0248, 0.169),
                 )),
+                CellMassMomentumContributions([GridMassAndMomentumChange(0, 0., Vec2::ZERO); 9]),
                 ParticleTag,
             ))
             .id();
 
         // iterate systems
-        update_stage.run(&mut world);
+        my_schedule.run(&mut world);
 
         // particle position should not change
         let particle_position = world.get::<Position>(particle_id);
@@ -203,15 +216,15 @@ mod tests {
         let gr = world.get_resource::<Grid>().unwrap();
 
         //// local grid cells momentum (as velocity) should be updated from particle.
-        assert_eq!(true, approx_equal(gr.cells[44].velocity.x, 0.042623872, 5));
-        assert_eq!(true, approx_equal(gr.cells[44].velocity.y, 0.097981312, 5));
-        assert_eq!(true, approx_equal(gr.cells[45].velocity.x, 0.044923648, 5));
-        assert_eq!(true, approx_equal(gr.cells[45].velocity.y, -0.100281088, 5));
+        assert_abs_diff_eq!(0.042623872, gr.cells[44].velocity.x, epsilon = 1e-4);
+        assert_abs_diff_eq!(0.097981312, gr.cells[44].velocity.y, epsilon = 1e-4);
+        assert_abs_diff_eq!(0.044923648, gr.cells[45].velocity.x, epsilon = 1e-4);
+        assert_abs_diff_eq!(-0.100281088, gr.cells[45].velocity.y, epsilon = 1e-4);
         assert_eq!(gr.cells[46].velocity, Vec2::new(0.0, 0.0));
-        assert_eq!(true, approx_equal(gr.cells[54].velocity.x, -0.044923648, 5));
-        assert_eq!(true, approx_equal(gr.cells[54].velocity.y, 0.100281088, 5));
-        assert_eq!(true, approx_equal(gr.cells[55].velocity.x, -0.042623872, 5));
-        assert_eq!(true, approx_equal(gr.cells[55].velocity.y, -0.097981312, 5));
+        assert_abs_diff_eq!(-0.044923648, gr.cells[54].velocity.x, epsilon = 1e-4);
+        assert_abs_diff_eq!(0.100281088, gr.cells[54].velocity.y, epsilon = 1e-4);
+        assert_abs_diff_eq!(-0.1704955, gr.cells[55].velocity.x, epsilon = 1e-4);
+        assert_abs_diff_eq!(-0.42192528, gr.cells[55].velocity.y, epsilon = 1e-4);
         assert_eq!(gr.cells[56].velocity, Vec2::new(0.0, 0.0));
         assert_eq!(gr.cells[64].velocity, Vec2::new(0.0, 0.0));
         assert_eq!(gr.cells[65].velocity, Vec2::new(0.0, 0.0));
@@ -222,7 +235,8 @@ mod tests {
     // in grid_to_particles system, a couple of particles should be effected by surrounding cells.
     fn test_grid_to_particles_iteration() {
         let mut world = World::default();
-        let mut update_stage = SystemStage::parallel();
+        let mut my_schedule = Schedule::new();
+        my_schedule.add_system(step_g2p::grid_to_particles);
         let mut gr = Grid {
             cells: vec![
                 Cell {
@@ -232,10 +246,6 @@ mod tests {
                 TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
-            dt: TEST_DT,
-            current_tick: 0,
-            gravity_enabled: true,
-            gravity: TEST_GRAVITY,
         };
 
         let particle_1_id = world
@@ -275,10 +285,10 @@ mod tests {
         gr.cells[particle_2_cell_index].mass = 0.25;
 
         world.insert_resource(gr);
-        update_stage.add_system(grid_to_particles);
+        world.insert_resource(WorldState::new(TEST_DT, TEST_GRAVITY, true));
 
         // iterate systems
-        update_stage.run(&mut world);
+        my_schedule.run(&mut world);
 
         // check particles
         let particle_1_position = world.get::<Position>(particle_1_id);
@@ -290,72 +300,55 @@ mod tests {
         let particle_2_mass = world.get::<Mass>(particle_2_id);
         let particle_2_affine_momentum = world.get::<AffineMomentum>(particle_2_id);
 
-        assert_eq!(
-            true,
-            approx_equal(particle_1_position.unwrap().0.x, 5.2497, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_position.unwrap().0.y, 5.3496, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_velocity.unwrap().0.x, 0.497, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_velocity.unwrap().0.y, 0.497, 3)
-        );
+        assert_abs_diff_eq!(particle_1_position.unwrap().0.x, 5.2497, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_1_position.unwrap().0.y, 5.3497, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_1_velocity.unwrap().0.x, 0.497, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_1_velocity.unwrap().0.y, 0.497, epsilon = 1e-4);
         assert_eq!(particle_1_mass.unwrap().0, 1.06);
-        assert_eq!(
-            true,
-            approx_equal(particle_1_affine_momentum.unwrap().0.x_axis.x, 0.71, 3)
+        assert_abs_diff_eq!(
+            particle_1_affine_momentum.unwrap().0.x_axis.x,
+            0.71,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_affine_momentum.unwrap().0.x_axis.y, 0.71, 3)
+        assert_abs_diff_eq!(
+            particle_1_affine_momentum.unwrap().0.x_axis.y,
+            0.71,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_affine_momentum.unwrap().0.y_axis.x, 0.3976, 3)
+        assert_abs_diff_eq!(
+            particle_1_affine_momentum.unwrap().0.y_axis.x,
+            0.3976,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_1_affine_momentum.unwrap().0.y_axis.y, 0.3976, 3)
+        assert_abs_diff_eq!(
+            particle_1_affine_momentum.unwrap().0.y_axis.y,
+            0.3976,
+            epsilon = 1e-4
         );
-
-        assert_eq!(
-            true,
-            approx_equal(particle_2_position.unwrap().0.x, 6.692, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_position.unwrap().0.y, 5.992, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_velocity.unwrap().0.x, -0.69135, 3)
-        );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_velocity.unwrap().0.y, 0.00704, 3)
-        );
+        assert_abs_diff_eq!(particle_2_position.unwrap().0.x, 6.692, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_2_position.unwrap().0.y, 5.992, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_2_velocity.unwrap().0.x, 0.13631988, epsilon = 1e-4);
+        assert_abs_diff_eq!(particle_2_velocity.unwrap().0.y, 0.8363197, epsilon = 1e-4);
         assert_eq!(particle_2_mass.unwrap().0, 1.23);
-        assert_eq!(
-            true,
-            approx_equal(particle_2_affine_momentum.unwrap().0.x_axis.x, -0.557, 3)
+        assert_abs_diff_eq!(
+            particle_2_affine_momentum.unwrap().0.x_axis.x,
+            -0.557,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_affine_momentum.unwrap().0.x_axis.y, -0.557, 3)
+        assert_abs_diff_eq!(
+            particle_2_affine_momentum.unwrap().0.x_axis.y,
+            -0.557,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_affine_momentum.unwrap().0.y_axis.x, -1.47264, 3)
+        assert_abs_diff_eq!(
+            particle_2_affine_momentum.unwrap().0.y_axis.x,
+            -1.47264,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(particle_2_affine_momentum.unwrap().0.y_axis.y, -1.47264, 3)
+        assert_abs_diff_eq!(
+            particle_2_affine_momentum.unwrap().0.y_axis.y,
+            -1.47264,
+            epsilon = 1e-4
         );
     }
 
@@ -371,10 +364,6 @@ mod tests {
                 TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
-            dt: TEST_DT,
-            current_tick: 0,
-            gravity_enabled: true,
-            gravity: TEST_GRAVITY,
         };
         gr.cells[7].mass = 0.25;
         gr.cells[7].velocity = Vec2::new(1.2, 2.3);
@@ -398,10 +387,6 @@ mod tests {
                 TEST_GRID_WIDTH * TEST_GRID_WIDTH
             ],
             width: TEST_GRID_WIDTH,
-            dt: TEST_DT,
-            current_tick: 0,
-            gravity_enabled: true,
-            gravity: TEST_GRAVITY,
         };
 
         // add border cell with mass and velocity
@@ -419,41 +404,28 @@ mod tests {
         };
 
         // apply grid update
-        gr.update();
+        gr.update(TEST_DT, TEST_GRAVITY);
 
         // border cell should have updated velocity and -y velocity cancelled
-        assert_eq!(
-            true,
-            approx_equal(gr.cells[border_cell_index].velocity.x, 1.8757, 5)
+        assert_abs_diff_eq!(
+            1.8775,
+            gr.cells[border_cell_index].velocity.x,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(gr.cells[border_cell_index].velocity.y, 0.0, 5)
-        );
-        assert_eq!(gr.cells[border_cell_index].mass, 1.17171717);
+        assert_abs_diff_eq!(0.0, gr.cells[border_cell_index].velocity.y, epsilon = 1e-8);
+        assert_abs_diff_eq!(1.17171717, gr.cells[border_cell_index].mass, epsilon = 1e-4);
 
         // middle cell should have updated velocity
-        assert_eq!(
-            true,
-            approx_equal(gr.cells[middle_cell_index].velocity.x, 1.120102, 5)
+        assert_abs_diff_eq!(
+            1.1201,
+            gr.cells[middle_cell_index].velocity.x,
+            epsilon = 1e-4
         );
-        assert_eq!(
-            true,
-            approx_equal(gr.cells[middle_cell_index].velocity.y, -0.36333, 5)
+        assert_abs_diff_eq!(
+            -0.3633,
+            gr.cells[middle_cell_index].velocity.y,
+            epsilon = 1e-4
         );
-        assert_eq!(gr.cells[middle_cell_index].mass, 3.333);
+        assert_abs_diff_eq!(3.3329, gr.cells[middle_cell_index].mass, epsilon = 1e-4);
     }
-}
-
-fn mat2_equal(a: Mat2, b: Mat2, dp: u8) -> bool {
-    vec2_equal(a.x_axis, b.x_axis, dp) && vec2_equal(a.y_axis, b.y_axis, dp)
-}
-
-fn vec2_equal(a: Vec2, b: Vec2, dp: u8) -> bool {
-    approx_equal(a.x, b.x, dp) && approx_equal(a.y, b.y, dp)
-}
-
-fn approx_equal(a: f32, b: f32, dp: u8) -> bool {
-    let p = 10f32.powi(-(dp as i32));
-    (a - b).abs() < p
 }

@@ -16,6 +16,15 @@ impl WorldState {
         self.gravity_enabled = !self.gravity_enabled;
     }
 
+    pub(crate) fn new(dt: f32, gravity: f32, gravity_enabled: bool) -> WorldState {
+        WorldState {
+            dt,
+            gravity,
+            gravity_enabled,
+            current_tick: 0,
+        }
+    }
+
     pub(crate) fn default() -> WorldState {
         WorldState {
             dt: DEFAULT_DT,

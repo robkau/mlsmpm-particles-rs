@@ -8,7 +8,6 @@ mod inputs;
 mod particle_sprites;
 mod scene;
 mod setup_camera;
-mod setup_windows;
 mod shapes;
 mod spawners;
 mod step_g2p;
@@ -16,6 +15,7 @@ mod step_p2g;
 mod step_update_cells;
 mod step_update_deformations;
 mod step_update_grid;
+mod test;
 mod world;
 
 mod prelude {
@@ -24,7 +24,6 @@ mod prelude {
     };
     pub(crate) use bevy::math::{Mat2, Vec2};
     pub(crate) use bevy::prelude::*;
-    pub(crate) use bevy::window::WindowMode::*;
     pub(crate) use bevy::window::{PrimaryWindow, Window};
     pub(crate) use bevy_egui::egui;
     pub(crate) use bevy_egui::*;
@@ -35,7 +34,6 @@ mod prelude {
     pub(crate) use crate::inputs::*;
     pub(crate) use crate::scene::*;
     pub(crate) use crate::setup_camera::*;
-    pub(crate) use crate::setup_windows::*;
     pub(crate) use crate::shapes::*;
     pub(crate) use crate::spawners::*;
     pub(crate) use crate::world::*;
@@ -66,6 +64,7 @@ fn main() {
         .add_systems(
             (
                 bevy::window::close_on_esc,
+                on_window_resize,
                 handle_inputs,
                 tick_spawners,
                 reset_grid,

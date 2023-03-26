@@ -154,7 +154,7 @@ fn spawn_particle(
                 transform: Transform::from_scale(Vec3::splat(0.005)),
                 ..Default::default()
             });
-            b = b.insert((Position(particle_position), cm, Mass(mass)));
+            b.insert((Position(particle_position), cm, Mass(mass)));
         }
         SpawnedParticleType::Water { cm, mass } => {
             b = b.insert(SpriteBundle {
@@ -162,7 +162,7 @@ fn spawn_particle(
                 transform: Transform::from_scale(Vec3::splat(0.002)),
                 ..Default::default()
             });
-            b = b.insert((Position(particle_position), cm, Mass(mass)));
+            b.insert((Position(particle_position), cm, Mass(mass)));
         }
     };
 }
