@@ -40,8 +40,8 @@ fn transform_and_scale_from(wnd: &Window, grid: Res<Grid>) -> (Transform, f32) {
     let scale = f32::min(size.x, size.y) / grid.width as f32; // adjust this to scale
 
     let t = Transform::from_translation(Vec3::new(
-        size.x / (scale * 2.0),
-        size.y / (scale * 2.0),
+        (size.x) / (scale * 2.0),
+        (size.y) / (scale * 2.0),
         0.0,
     ));
 

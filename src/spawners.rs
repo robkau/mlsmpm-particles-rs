@@ -289,7 +289,8 @@ pub(crate) fn spawn_particles(
                     );
 
                     // 1. translate point back to origin
-                    let pos_rel_origin: Vec2 = Vec2::new(pos.x - pivot.x, pos.y - pivot.y);
+                    let pos_rel_origin: Vec2 =
+                        Vec2::new(pos.x - pivot.x / 4., pos.y - pivot.y / 4.);
 
                     // 2. rotate point
                     let pos_rel_origin_rotated: Vec2 = Vec2::new(
@@ -298,13 +299,11 @@ pub(crate) fn spawn_particles(
                     );
 
                     // 3. translate point back:
-                    let pos_rotated: Vec2 = pos_rel_origin_rotated + pivot;
-
                     spawn_particle(
                         commands,
                         grid.width,
                         spawner_info.clone().particle_origin,
-                        pos_rotated,
+                        pos_rel_origin_rotated,
                         Some(spawn_vel),
                         world.current_tick,
                         Some(spawner_info.clone().particle_duration),

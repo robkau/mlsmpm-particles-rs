@@ -29,6 +29,7 @@ pub(crate) fn handle_inputs(
         let size = Vec2::new(window.width() as f32, window.height() as f32);
         let scale = f32::min(size.x, size.y) / grid.width as f32;
         let grid_pos = win_pos / scale;
+        // todo fix to align bounds of grid with window , along with setup_camera logic
 
         // if particle is near cursor, push it away.
         particles
