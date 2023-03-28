@@ -15,8 +15,10 @@ mod step_p2g;
 mod step_update_cells;
 mod step_update_deformations;
 mod step_update_grid;
-mod test;
 mod world;
+
+#[cfg(test)]
+mod test;
 
 mod prelude {
     pub(crate) use bevy::diagnostic::{

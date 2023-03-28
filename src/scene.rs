@@ -64,24 +64,6 @@ pub(crate) fn hollow_box_scene() -> ParticleScene {
             .created_at(0)
             .pattern(SpawnerPattern::Triangle { l: 25 })
             .spawn_on_creation(true)
-            .spawn_frequency(1200)
-            .max_particles(200000)
-            .particle_duration(40000)
-            .particle_origin(Vec2::new(60., 40.))
-            .particle_velocity(Vec2::new(-95.3, -9.3))
-            .particle_velocity_random_vec_a(Vec2::new(-0.0, -0.0))
-            .particle_velocity_random_vec_b(Vec2::new(0.0, 0.0))
-            .particle_type(SpawnedParticleType::steel())
-            .particle_texture("steel_particle.png".to_string())
-            .build()
-            .unwrap(),
-    );
-
-    s.add_spawner(
-        ParticleSpawnerInfoBuilder::default()
-            .created_at(0)
-            .pattern(SpawnerPattern::Triangle { l: 25 })
-            .spawn_on_creation(true)
             .spawn_frequency(1100)
             .max_particles(200000)
             .particle_duration(40000)
