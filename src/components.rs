@@ -123,7 +123,7 @@ impl ParticleScene {
             s.created_at = 0;
             commands.spawn((
                 s.clone(),
-                asset_server.load::<Image, &std::string::String>(&s.clone().particle_texture),
+                asset_server.load::<Image>(&s.clone().particle_texture),
                 ParticleSpawnerTag,
             ));
         }

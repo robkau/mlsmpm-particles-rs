@@ -58,12 +58,13 @@ fn main() {
         .insert_resource(ParticleScene::default())
         .insert_resource(NeedToReset(false))
         .add_plugins(DefaultPlugins)
-        .add_plugin(LogDiagnosticsPlugin::default())
-        .add_plugin(EguiPlugin)
-        .add_plugin(EntityCountDiagnosticsPlugin::default())
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_startup_system(setup_camera)
+        .add_plugins(LogDiagnosticsPlugin::default())
+        .add_plugins(EguiPlugin)
+        .add_plugins(EntityCountDiagnosticsPlugin::default())
+        .add_plugins(FrameTimeDiagnosticsPlugin::default())
+        .add_systems(Startup, setup_camera)
         .add_systems(
+            Update,
             (
                 bevy::window::close_on_esc,
                 on_window_resize,
@@ -77,6 +78,7 @@ fn main() {
                 .in_set(Sets::Input),
         )
         .add_systems(
+            Update,
             (
                 step_p2g::particles_to_grid_fluids,
                 step_p2g::particles_to_grid_solids,
@@ -85,6 +87,7 @@ fn main() {
                 .in_set(Sets::P2g),
         )
         .add_systems(
+            Update,
             (
                 step_update_grid::update_grid,
                 step_g2p::grid_to_particles,
@@ -96,8 +99,8 @@ fn main() {
                 .chain()
                 .in_set(Sets::G2p),
         )
-        .configure_set(Sets::Input.before(Sets::P2g))
-        .configure_set(Sets::P2g.before(Sets::G2p))
+        .configure_sets(Update, Sets::Input.before(Sets::P2g))
+        .configure_sets(Update, Sets::P2g.before(Sets::G2p))
         .run()
 }
 

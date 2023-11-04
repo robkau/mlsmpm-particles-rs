@@ -73,7 +73,7 @@ pub(crate) fn handle_inputs(
                 .unwrap();
             commands.spawn((
                 si.clone(),
-                asset_server.load::<Image, &std::string::String>(&si.particle_texture),
+                asset_server.load::<Image>(&si.particle_texture),
                 ParticleSpawnerTag,
             ));
         }
@@ -97,7 +97,7 @@ pub(crate) fn handle_inputs(
                 .unwrap();
             commands.spawn((
                 si.clone(),
-                asset_server.load::<Image, &std::string::String>(&si.clone().particle_texture),
+                asset_server.load::<Image>(&si.clone().particle_texture),
                 ParticleSpawnerTag,
             ));
         }
